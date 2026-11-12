@@ -9,6 +9,8 @@
  * User adds click feedback: register local hits for shared backs and navigation icons; the loop presents only that control on press and restoration.
  * 用户修订：所有模式把内容扫描截止到分隔线之间的8行固定为白色留白；滚动不能把列表画进这条扫描保护带。
  * User revision: every mode keeps the eight rows between content scans and the divider blank white; scrolling must not paint list content into this guard.
+ * 用户2026-11-12修订：S31底栏使用浅色磨砂悬浮胶囊和独立选中底；导航灰阶差分替代旧五行横条，内容保护带保持白色。
+ * User revision 2026-11-12: S31 uses a light frosted floating capsule with an inset selected pill; bounded gray navigation replaces the five-row marker, retaining the white content guard.
  * 用户修订：状态栏签名按系统字体和内建界面字体的共同安全宽度截断，阅读页复用小型字宽表，不重载系统字体。
  * User revision: fit status signatures to widths safe for the system and built-in UI faces; reading reuses a small metrics table without reloading the system font.
  */
@@ -206,6 +208,27 @@ static void icon(uint8_t *fb, int tab, int cx, int y) {
 }
 
 void ui_nav_draw(uint8_t *fb, int active) {
+#if KIIKO_BOARD_METALIO47
+    // 导航后面固定留白，无需模糊白色像素或分配工作区；使用A方案的浅灰玻璃色阶。
+    // Navigation has a reserved white backing: use A's light glass tones without blurring white pixels or allocating a workspace.
+    ui_fill_rect_fast((EpdRect){0,UI_NAV_REFRESH_END,UI_LOCK_WIDTH,UI_LOCK_HEIGHT-UI_NAV_REFRESH_END},UI_GRAY_WHITE,fb);
+    const EpdRect capsule={12,UI_NAV_TOP+8,UI_LOCK_WIDTH-24,96};
+    ui_fill_round_rect(fb,(EpdRect){capsule.x,capsule.y+3,capsule.width,capsule.height},48,0xdd);
+    ui_fill_round_rect(fb,capsule,48,0xee);
+    ui_draw_round_rect(fb,(EpdRect){capsule.x+1,capsule.y+1,capsule.width-2,capsule.height-2},47,UI_GRAY_WHITE);
+    const int count=app_settings_simple_ui()?2:4;
+    for(int slot=0;slot<count;++slot) {
+        const int i=count==2?(slot?3:0):slot;
+        const int center=(slot*2+1)*UI_LOCK_WIDTH/(count*2);
+        if(i==active) {
+            const EpdRect selected={center-70,UI_NAV_TOP+16,140,80};
+            ui_fill_round_rect(fb,selected,40,0xdd);
+            ui_draw_round_rect(fb,(EpdRect){selected.x+1,selected.y+1,selected.width-2,selected.height-2},39,UI_GRAY_WHITE);
+        }
+        icon(fb,i,center,UI_NAV_TOP+27);
+        ui_text(fb,center,UI_NAV_TOP+74,17,app_settings_simple_ui()&&i==0?"Đọc tiếp":labels[i],EPD_DRAW_ALIGN_CENTER,false);
+    }
+#else
     ui_fill_rect_fast((EpdRect){0, UI_NAV_TOP, UI_LOCK_WIDTH, UI_LOCK_HEIGHT - UI_NAV_TOP}, 0xe0, fb);
     ui_hairline(fb, UI_NAV_TOP, 0, UI_LOCK_WIDTH, UI_GRAY_LIGHT);
     ui_fill_rect_fast((EpdRect){0, UI_NAV_REFRESH_END, UI_LOCK_WIDTH, UI_NAV_TOP - UI_NAV_REFRESH_END}, 0xf0, fb);
@@ -222,6 +245,7 @@ void ui_nav_draw(uint8_t *fb, int active) {
         icon(fb, i, center, UI_NAV_TOP + 27);
         ui_text(fb, center, UI_NAV_TOP + 74, 17, app_settings_simple_ui() && i == 0 ? "Đọc tiếp" : labels[i], EPD_DRAW_ALIGN_CENTER, false);
     }
+#endif
 }
 
 static time_t status_time(void) {

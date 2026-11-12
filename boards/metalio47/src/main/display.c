@@ -8,6 +8,8 @@
  *
  * 普通子页返回沿用柔和端点；用户反馈残影后，周期清理改为原厂整屏GC，不再保留导航/白底。
  * Ordinary child returns retain soft endpoints; after the reported ghosting, periodic cleanup uses vendor full-panel GC including navigation/white backgrounds.
+ * 用户2026-11-12修订：悬浮胶囊选中底替代五行横条；内容保持原范围，导航单独使用既有完整灰阶差分，不缓存或伪造back。
+ * User revision 2026-11-12: floating selected pills replace the five-row marker; keep body bounds and update navigation separately with existing full-gray differences, without caching or fabricating back.
  * Present path: push by mode, drop HV rails on idle, fall back pclk on
  * underrun.
  * 用户继续优化快刷响应：无灰阶条带时按32位并行归一八像素，已为黑白的字不重复写PSRAM；不删相位、不增加缓存或改变清残影和底栏边界。
@@ -166,8 +168,6 @@ static bool s_main_shelf_exit;
 static bool s_main_changing_page;
 _Static_assert((UI_NAV_REFRESH_END & 31) == 0, "fixed navigation begins on an aligned framebuffer column");
 _Static_assert(UI_NAV_REFRESH_END <= UI_NAV_TOP, "aligned refresh must stop above navigation and marker");
-_Static_assert(UI_NAV_MARKER_SCAN_END <= UI_NAV_TOP + 27, "marker crop must stop before navigation icons");
-_Static_assert((UI_NAV_MARKER_TOP & 1) && !(UI_NAV_MARKER_BOTTOM & 1), "marker nibble guards match current geometry");
 
 static bool main_nav_geometry(void) {
     // 当前板为倒置竖屏：逻辑 y 对应物理 x。其他屏型保持原刷新路径。
@@ -281,25 +281,26 @@ static void main_band_copy(EpdiyHighlevelState *hl, uint8_t *cache, bool restore
     }
 }
 
-static void main_freeze_navigation(EpdiyHighlevelState* hl, bool update_marker) {
+static void main_freeze_navigation(EpdiyHighlevelState* hl, bool update_navigation) {
+    // 完整目标胶囊保留在front；仅内容局刷时才保留真实back中的整个底栏。
+    // Retain the complete target capsule in front; content-only updates retain the actual back navigation.
+    if (update_navigation) return;
     const size_t stride = (size_t)epd_width() / 2;
     for (int y = 0; y < epd_height(); ++y) {
-        uint8_t* front = hl->front_fb + y * stride;
-        const uint8_t* back = hl->back_fb + y * stride;
-        if (!update_marker) {
-            memcpy(front + UI_NAV_REFRESH_END / 2, back + UI_NAV_REFRESH_END / 2,
-                   stride - UI_NAV_REFRESH_END / 2);
-            continue;
-        }
-        // 只保留目标横条的五行；起点为奇数像素，同行字节的分隔线半字节仍取真实 back。
-        // Keep only the five target marker rows; at the odd first pixel retain the neighboring divider nibble from actual back.
-        memcpy(front + UI_NAV_REFRESH_END / 2, back + UI_NAV_REFRESH_END / 2,
-               (UI_NAV_MARKER_TOP - UI_NAV_REFRESH_END) / 2);
-        const int first = UI_NAV_MARKER_TOP / 2;
-        front[first] = (front[first] & 0xf0) | (back[first] & 0x0f);
-        memcpy(front + UI_NAV_MARKER_BOTTOM / 2, back + UI_NAV_MARKER_BOTTOM / 2,
-               stride - UI_NAV_MARKER_BOTTOM / 2);
+        memcpy(hl->front_fb + y * stride + UI_NAV_REFRESH_END / 2,
+               hl->back_fb + y * stride + UI_NAV_REFRESH_END / 2,
+               stride - UI_NAV_REFRESH_END / 2);
     }
+}
+
+static enum EpdDrawError main_present_navigation(EpdiyHighlevelState* hl) {
+    // 包含旧/新选中底的真实灰阶差分；无变化由highlevel跳过，输入与同页内容更新不增加扫描。
+    // Present real gray differences for old/new pills; highlevel skips unchanged navigation, with no extra scan for content-only updates.
+    const EpdWaveform* wave=display_main_gray_waveform();
+    epd_hl_waveform(hl,wave);
+    use_scan_for(wave,MODE_GL16);
+    return epd_hl_update_area(hl,MODE_GL16,25,
+        (EpdRect){0,UI_NAV_REFRESH_END,epd_rotated_display_width(),epd_rotated_display_height()-UI_NAV_REFRESH_END});
 }
 
 void display_main_transition_disarm(void) {
@@ -413,8 +414,8 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
     main_freeze_navigation(hl, true);
     if (fast) main_normalize_body(hl);
     const bool changed = main_body_changed(hl);
-    // 连横条也未变化时不唤醒高压；故障已在上面恢复，显式全刷仍走独立出口。
-    // Avoid waking HV when even the marker is unchanged; faults recover above and explicit full refresh uses its own path.
+    // 内容和悬浮导航均无变化时不唤醒高压；故障和显式全刷仍走原出口。
+    // Avoid waking HV when content and floating navigation are unchanged; retain recovery and explicit-full paths.
     if (!changed && !ui_page_changed(hl)) {
         s_main_band_count = 0;
         epd_hl_waveform(hl, &E0470_WAVEFORM);
@@ -427,15 +428,9 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
     uint8_t *cache = fast && changed && s_main_band_count
         ? heap_caps_aligned_alloc(16, main_band_bytes(), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
     const bool gray_fallback = water || (fast && changed && s_main_band_count && !cache);
-    // 黑白表的等灰迁移均不驱动；仅把有变化的横条并入同次扫描，固定图标保持原样。
-    // The BW/exit tables hold every equal pair. Include only the changing marker
-    // in this scan; frozen divider/labels/icons receive no drive. This removes
-    // an additional comparison and eight-frame serial marker update.
-    // 页面切换把横条并入同次输出，冻住的分隔线/图标由等值迁移保持。
-    // Fuse the marker into the same transition; equal pairs hold frozen furniture/icons.
-    bool marker_with_body=changed&&!cache&&((fast&&!gray_fallback)||changing_page);
+    // 悬浮选中底含中间灰阶，不能并入主内容的黑白波形；底栏在内容完成后独立差分。
+    // Floating selection contains intermediate grays: exclude it from BW body waves and present navigation after the body.
     EpdRect body_area=main_body_area();
-    if(marker_with_body)body_area.height=UI_NAV_MARKER_SCAN_END;
     if (cache) main_band_copy(hl, cache, false);
     const EpdWaveform* body_wave = normal ? display_main_normal_waveform() : gray_fallback ? display_main_gray_waveform()
         : shelf_exit ? display_main_shelf_exit_waveform() : display_main_bw_waveform();
@@ -454,8 +449,6 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
     }
     const bool shelf_regions=normal&&changed&&(s_main_band_count||body_full)&&(changing_page||body_full||shelf37_soft);
     if(shelf37_soft)body_wave=shelf37_soft;
-    if(shelf_regions){marker_with_body=true;body_area.height=UI_NAV_MARKER_SCAN_END;}
-    if(body_full&&!shelf_regions){marker_with_body=false;body_area=main_body_area();}
     if(!body_full)body_wave=main_switch_waveform(body_wave,body_mode);
     use_scan_for(body_wave, body_mode);
     // 空闲普通/黑白根页减少备行等待，不改扫描时钟、相数和脉宽；欠载后本次开机回到192行。
@@ -534,15 +527,7 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
     }
     if(cleanup_applied)ui_page_cleaned(*result);
     s_main_band_count = 0;
-    if (*result == EPD_DRAW_SUCCESS && !marker_with_body) {
-        const EpdRect marker = {0, UI_NAV_MARKER_TOP, epd_rotated_display_width(),
-                               UI_NAV_MARKER_BOTTOM - UI_NAV_MARKER_TOP};
-        // 同页重绘横条无变化时 highlevel 自动跳过；32列扩展范围中其余像素来自 back，保持不驱动。
-        // Highlevel skips an unchanged marker; all other pixels in its expanded 32-column crop come from back and remain undriven.
-        epd_hl_waveform(hl, &E0470_FOLLOW_WAVEFORM);
-        use_scan_for(&E0470_FOLLOW_WAVEFORM, MODE_DU);
-        *result = epd_hl_update_area(hl, MODE_DU, 25, marker);
-    }
+    if (*result == EPD_DRAW_SUCCESS) *result=main_present_navigation(hl);
     if (*result != EPD_DRAW_SUCCESS) *result = main_recover(hl, *result);
     epd_hl_waveform(hl, &E0470_WAVEFORM);
     use_scan_for(&E0470_WAVEFORM, MODE_GL16);

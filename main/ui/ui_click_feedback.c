@@ -43,11 +43,16 @@ void ui_click_feedback_reset(void) {
     s_nav.tab=-1;s_nav.phase=0;s_nav.due=0;s_nav.dirty=(EpdRect){0};
 }
 void ui_click_feedback_begin(uint8_t *fb) {
+#if KIIKO_BOARD_METALIO47
+    // 新页的选中胶囊不同，必须丢弃旧页图标底图；保留待反馈目标，新帧完成后再取样。
+    // A new page has a different selected pill: discard the previous icon baseline, retain the pending target and recapture after paint.
+#else
     // 四主页共用完全相同的图标底色，保留这一个小控件原像素，切页后仍能准确复位。
     // Main roots share identical icon backgrounds; retain this one control baseline so it settles correctly after navigation.
     if(s_pixels&&s_active.kind==UI_CLICK_NAV&&ui_click_feedback_nav_pending()&&fb==s_frame) {
         restore_pixels(fb);s_count=0;return;
     }
+#endif
     heap_caps_free(s_pixels);s_pixels=NULL;s_count=0;s_frame=fb;
     if(ui_click_feedback_nav_pending()){s_nav.phase=0;s_nav.due=0;}
 }

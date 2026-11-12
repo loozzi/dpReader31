@@ -1,5 +1,10 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.3.2-vn · Chưa phát hành
+
+- Thanh điều hướng dưới cùng chuyển sang capsule nổi màu kính mờ, với nền riêng cho mục đang chọn; giữ nguyên bốn mục và vùng chạm, hỗ trợ giao diện hai mục.
+- Cập nhật nền chọn bằng refresh xám cục bộ; phản hồi nhấn lấy lại nền mới sau khi chuyển trang.
+
 ## dpReader 1.3.1-vn · 2026-11-04
 
 - Home có ba chế độ **Đầy đủ**, **Đơn giản** và **Đơn giản hoàn toàn**. Chế độ Đơn giản hoàn toàn dùng thẻ Đọc tiếp lớn, nền bìa sách, lời chào cá nhân và trích đoạn hoặc tên chương. Vuốt lên mở **Pop menu** (Mở sách, Truyền file, OPDS, Cài đặt), vuốt xuống ở cả ba chế độ mở **Quick Settings**.
