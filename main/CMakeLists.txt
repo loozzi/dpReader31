@@ -1,7 +1,7 @@
 include("${CMAKE_CURRENT_LIST_DIR}/../cmake/board.cmake")
 set(main_requires
-    kiiko_board
-    kiiko_freetype
+    dpreader_board
+    dpreader_freetype
     read_pico
     metalio_hw
     read_pico_transfer
@@ -43,7 +43,7 @@ set(main_requires
     mbedtls
     espressif__cjson
 )
-kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main.c"
+dpreader_board_sources(dpreader_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main.c"
         "boot_state.c"
         "apps/app_boot_recovery.c"
         "ota_update.c"
@@ -56,8 +56,6 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "metalio_text_ripple.c"
         "sleep.c"
         "time_service.c"
-        "lock_pin.c"
-        "lock_pin_flow.c"
         "lock_screen.c"
         "settings.c"
         "factory_reset.c"
@@ -74,7 +72,6 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "ui/ui_keyboard.c"
         "ui/ui_gesture.c"
         "ui/ui_glass.c"
-        "ui/ui_pinpad.c"
         "ui/ui_power_dialog.c"
         "ui/ui_quick_menu.c"
         "ui/ui_ai_menu.c"
@@ -89,7 +86,6 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "ui/ui_home_clock.c"
         "ui/ui_image_dither.c"
         "ui/ui_wallpaper.c"
-        "ui/ui_avatar.c"
         "ui/ui_reader_background.c"
         "apps/app_book.c"
         "apps/book_toc.c"
@@ -103,6 +99,7 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "apps/usb_storage.c"
         "book/book_store.c"
         "book/book_progress.c"
+        "book/book_state_store.c"
         "book/book_history_backup.c"
         "book/book_title.c"
         "book/book_ticket.c"
@@ -145,14 +142,17 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "factory/pmu_selftest.c"
         "factory/vcom_setup.c"
         "factory/debug_panel.c")
-if(KIIKO_BOARD STREQUAL "metalio47")
-    list(APPEND kiiko_selected_sources "app/crash_report.c")
+if(DPREADER_BOARD STREQUAL "metalio47")
+    list(APPEND dpreader_selected_sources "app/crash_report.c")
+endif()
+if(NOT DPREADER_EDITION STREQUAL "love-book")
+    list(APPEND dpreader_selected_sources "lock_pin.c" "lock_pin_flow.c" "ui/ui_pinpad.c" "ui/ui_avatar.c")
 endif()
 idf_component_register(
     LDFRAGMENTS "metalio_crash.lf"
-    SRCS ${kiiko_selected_sources}
+    SRCS ${dpreader_selected_sources}
     REQUIRES ${main_requires}
-    INCLUDE_DIRS "." "app" "apps" "font" "ui" "factory" "book"
+    INCLUDE_DIRS "." "app" "apps" "font" "ui" "factory" "book" "${DPREADER_SOURCE_ROOT}"
     EMBED_FILES
         "assets/lock_4bpp.bin"
         "assets/startup_logo_4bpp.bin"
@@ -166,26 +166,26 @@ target_link_options(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=esp_panic_handler")
 
 option(METALIO_LOCAL_LATENCY "Local USB latency probe; never enable for delivery" OFF)
 if(METALIO_LOCAL_LATENCY)
-    target_compile_definitions(${COMPONENT_LIB} PRIVATE KIIKO_LOCAL_LATENCY=1)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE DPREADER_LOCAL_LATENCY=1)
 endif()
 option(METALIO_LOCAL_TRANSFER_START "Unattended local WiFi transfer test; never deliver" OFF)
 if(METALIO_LOCAL_TRANSFER_START)
-    target_compile_definitions(${COMPONENT_LIB} PRIVATE KIIKO_LOCAL_TRANSFER_START=1)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE DPREADER_LOCAL_TRANSFER_START=1)
 endif()
 
 option(METALIO_FAST_READER_PANELS "Local four-gray font/reading panels" OFF)
 if(METALIO_FAST_READER_PANELS)
-    target_compile_definitions(${COMPONENT_LIB} PRIVATE KIIKO_S31_FAST_READER_PANELS=1)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE DPREADER_S31_FAST_READER_PANELS=1)
 endif()
 option(METALIO_READER_PANEL37_EXPERIMENT "Local vendor-derived S31 GL37 reader panels" OFF)
 if(METALIO_READER_PANEL37_EXPERIMENT)
-    target_compile_definitions(${COMPONENT_LIB} PRIVATE KIIKO_S31_READER_PANEL37=1)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE DPREADER_S31_READER_PANEL37=1)
 endif()
 option(METALIO_SHELF37_EXPERIMENT "Local vendor-derived S31 GL37 shelf art/chrome" OFF)
 if(METALIO_SHELF37_EXPERIMENT)
-    target_compile_definitions(${COMPONENT_LIB} PRIVATE KIIKO_S31_SHELF37=1)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE DPREADER_S31_SHELF37=1)
 endif()
 option(METALIO_TEXT_RIPPLE_EXPERIMENT "Local four-level reader ripple experiment" OFF)
 if(METALIO_TEXT_RIPPLE_EXPERIMENT)
-    target_compile_definitions(${COMPONENT_LIB} PRIVATE KIIKO_S31_TEXT_RIPPLE=1)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE DPREADER_S31_TEXT_RIPPLE=1)
 endif()

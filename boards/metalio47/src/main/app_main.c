@@ -30,7 +30,7 @@
 #include "book_store.h"
 #include "esp_system.h"
 #include "esp_heap_caps.h"
-#include "kiiko_board_config.h"
+#include "dpreader_board_config.h"
 #include "read_pico_sd.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -69,7 +69,15 @@ extern const app_desc_t app_boot_recovery;
 static void restore_time_from_pmu(void) {
     struct timeval current;
     if (gettimeofday(&current,NULL)==0 && current.tv_sec>=1704067200 && current.tv_sec<=4102444799U) return;
-    if (read_pico_pmu_cmd(PMU_CMD_TIME_GET, NULL, 0) != ESP_OK) return;
+    esp_err_t err=read_pico_pmu_cmd(PMU_CMD_TIME_GET, NULL, 0);
+    if (err!=ESP_OK && err!=ESP_ERR_INVALID_STATE) {
+        vTaskDelay(pdMS_TO_TICKS(15));
+        err=read_pico_pmu_cmd(PMU_CMD_TIME_GET, NULL, 0);
+    }
+    if (err!=ESP_OK) {
+        ESP_LOGW(TAG,"RTC boot restore failed: %s",esp_err_to_name(err));
+        return;
+    }
     const pmu_snapshot_t *pmu = read_pico_pmu_get();
     if (!pmu || !pmu->time_ok || !pmu->time_synced || pmu->unix_sec < 1704067200 || pmu->unix_sec > 4102444799U) return;
     struct timeval tv = {.tv_sec = (time_t)pmu->unix_sec, .tv_usec = 0};
@@ -86,15 +94,15 @@ extern const uint8_t lock_4bpp_bin_end[] asm("_binary_lock_4bpp_bin_end");
 // no Pico PMU, so the calibrated value lives in local NVS only.
 static void resolve_vcom_at_boot(void) {
     const int saved_mv = vcom_setup_load_mv();
-#ifdef KIIKO_BOARD_VCOM_TRIAL_MV
+#ifdef DPREADER_BOARD_VCOM_TRIAL_MV
     // User-requested reversible trial: apply the reference without changing NVS.
-    const int mv = KIIKO_BOARD_VCOM_TRIAL_MV;
+    const int mv = DPREADER_BOARD_VCOM_TRIAL_MV;
     ESP_LOGI(TAG,"VCOM trial=%dmV; saved/default=%dmV retained for rollback",mv,saved_mv);
 #else
     const int mv = saved_mv;
 #endif
     epd_set_vcom((uint16_t)mv);
-    ESP_LOGI(TAG,"Metalio V1.5 runtime VCOM=%dmV (default %dmV)", mv, KIIKO_BOARD_VCOM_DEFAULT_MV);
+    ESP_LOGI(TAG,"Metalio V1.5 runtime VCOM=%dmV (default %dmV)", mv, DPREADER_BOARD_VCOM_DEFAULT_MV);
 }
 
 // 开机按住音量键进 VCOM 校准页；V1.5 音量键在 FCA9555 P1.0/P1.1，低有效。
@@ -184,11 +192,15 @@ void app_main(void) {
     app_settings_init();
     // 大缓冲/字体之前读取凭据；失败不缓存，后续入口仍可重试。/ Read credentials before large buffers/fonts; retry failed reads later.
     (void)lock_pin_enabled();
-    pico_boot_init(reset == ESP_RST_PANIC || reset == ESP_RST_INT_WDT ||
-                   reset == ESP_RST_TASK_WDT || reset == ESP_RST_WDT);
 
     read_pico_handle_t hw;
     if (read_pico_init(&hw) != ESP_OK) return;
+    read_pico_sd_info_t checkpoint_media = {0};
+    for (unsigned wait = 0; wait < 150 &&
+         read_pico_sd_get_info(&checkpoint_media) == ESP_ERR_NOT_FINISHED; ++wait)
+        vTaskDelay(pdMS_TO_TICKS(20));
+    pico_boot_init(reset == ESP_RST_PANIC || reset == ESP_RST_INT_WDT ||
+                   reset == ESP_RST_TASK_WDT || reset == ESP_RST_WDT);
 #if CONFIG_DPREADER_AUTO_RESTORE
     if (app_settings_autorestore_pending()) {
         read_pico_sd_info_t media = {0};
@@ -198,10 +210,10 @@ void app_main(void) {
     }
     (void)app_settings_autorestore_boot();
 #endif
+    if (hw.pmu_ready) restore_time_from_pmu();
     crash_report_poll(true);
     rp_boot_mark("hw");
     print_memory_profile("display-and-board-ready");
-    if (hw.pmu_ready) restore_time_from_pmu();
     resolve_vcom_at_boot();
     rp_boot_mark("vcom");
     ESP_LOGI(TAG,"TPS65185 last VCOM register readback=%dmV",metalio_tps_vcom_mv());
@@ -258,6 +270,7 @@ void app_main(void) {
     pico_ota_confirm_running();
 
     app_lock_boot_gate(&hl, hw.touch, hw.sensor);
+    crash_report_poll(false);
     rp_boot_mark("lock");
     const app_desc_t *first = app_home_page();
     pico_resume_t resume = {0};
@@ -293,8 +306,9 @@ void app_main(void) {
 #if CONFIG_DPREADER_AUTO_RESTORE
     if (app_settings_autorestore_status() >= APP_RESTORE_NEED_MEDIA) first = app_at(3);
 #endif
+    crash_report_poll(false);
     rp_boot_mark("resume");
-#ifdef KIIKO_LOCAL_TRANSFER_START
+#ifdef DPREADER_LOCAL_TRANSFER_START
     // Explicit unattended local tests only; preserve PIN and recovery gates.
     if (!lock_pin_enabled() && first == app_home_page()) {
         extern const app_desc_t app_transfer;

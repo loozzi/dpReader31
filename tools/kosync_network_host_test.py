@@ -7,6 +7,8 @@ book=root/'main/apps/app_book.c';transfer=root/'components/read_pico_transfer/re
 unit=r'''
 #include <assert.h>
 #define TRANSFER_NETWORK_GUARD_OR_RETURN(result) ((void)0)
+#define read_pico_transfer_prepare_network() ((void)0)
+#define read_pico_transfer_sleep_blocked() (false)
 #include <stdbool.h>
 #define read_pico_transfer_network_shareable() (true)
 #include <stdint.h>
@@ -23,7 +25,7 @@ unit=r'''
 #define MALLOC_CAP_INTERNAL 1
 #define MALLOC_CAP_8BIT 2
 #define MALLOC_CAP_SPIRAM 4
-#define KIIKO_BOARD_METALIO47 1
+#define DPREADER_BOARD_METALIO47 1
 #define READ_PICO_TRANSFER_MODE_AP 0
 #define READ_PICO_TRANSFER_MODE_STA 1
 #define READ_PICO_TRANSFER_STOPPED 0
@@ -84,6 +86,8 @@ start=function('read_pico_transfer_start',transfer);prefix=start[:start.index(' 
 radio=r'''
 #include <assert.h>
 #define TRANSFER_NETWORK_GUARD_OR_RETURN(result) ((void)0)
+#define read_pico_transfer_prepare_network() ((void)0)
+#define read_pico_transfer_sleep_blocked() (false)
 #include <stdbool.h>
 #define read_pico_transfer_network_shareable() (true)
 #include <stdio.h>
@@ -102,6 +106,9 @@ static bool cancel_time_sync(bool automatic){assert(automatic);return cancel_ok;
 static bool claim_config(void){if(claim_ok)locked=true;return claim_ok;}
 static void release_config(void){locked=false;}
 static int ble_pt_network_acquire(void){assert(locked);++reservations;return reserve_error;}
+static const char *esp_err_to_name(int error){(void)error;return "test";}
+static void quiet_log(const char *tag,const char *fmt,...){(void)tag;(void)fmt;}
+#define ESP_LOGW(...) quiet_log(__VA_ARGS__)
 '''+prefix+r'''
  return ESP_OK;
 }

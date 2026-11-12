@@ -3,14 +3,14 @@
 from pathlib import Path
 import subprocess,tempfile,sys
 ROOT=Path(__file__).resolve().parents[1]
-COMP=ROOT/'components/kiiko_freetype'
-SOURCES=['base/ftbase.c','base/ftinit.c','base/ftsystem.c','base/ftdebug.c','base/ftbitmap.c','base/ftmm.c','base/fttype1.c','truetype/truetype.c','sfnt/sfnt.c','smooth/smooth.c','raster/raster.c','../../kiiko_autofit.c','psnames/psnames.c']
-assert {(COMP/'vendor/src'/p).resolve() for p in SOURCES}=={(COMP/p).resolve() for p in __import__('re').findall(r'"((?:vendor/src/[^" ]+|kiiko_autofit)\.c)"',(COMP/'CMakeLists.txt').read_text())}
+COMP=ROOT/'components/dpreader_freetype'
+SOURCES=['base/ftbase.c','base/ftinit.c','base/ftsystem.c','base/ftdebug.c','base/ftbitmap.c','base/ftmm.c','base/fttype1.c','truetype/truetype.c','sfnt/sfnt.c','smooth/smooth.c','raster/raster.c','../../dpreader_autofit.c','psnames/psnames.c']
+assert {(COMP/'vendor/src'/p).resolve() for p in SOURCES}=={(COMP/p).resolve() for p in __import__('re').findall(r'"((?:vendor/src/[^" ]+|dpreader_autofit)\.c)"',(COMP/'CMakeLists.txt').read_text())}
 import importlib.util
 _spec=importlib.util.spec_from_file_location('prepare_autofit',COMP/'prepare_autofit.py')
 _prepare=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(_prepare)
 _autofit=_prepare.generate(ROOT/'build/font-autofit-host')
-FLAGS=['-std=c11','-O2','-DFT2_BUILD_LIBRARY','-DFT_CONFIG_MODULES_H="kiiko_ftmodule.h"','-DFT_CONFIG_OPTIONS_H="kiiko_ftoption.h"','-I'+str(_autofit),'-I'+str(COMP/'vendor/src/autofit'),'-I'+str(COMP/'vendor/include'),'-I'+str(COMP),'-I'+str(ROOT/'main/font')]
+FLAGS=['-std=c11','-O2','-DFT2_BUILD_LIBRARY','-DFT_CONFIG_MODULES_H="dpreader_ftmodule.h"','-DFT_CONFIG_OPTIONS_H="dpreader_ftoption.h"','-I'+str(_autofit),'-I'+str(COMP/'vendor/src/autofit'),'-I'+str(COMP/'vendor/include'),'-I'+str(COMP),'-I'+str(ROOT/'main/font')]
 UNIT=r'''
 #include "ttf_mono.h"
 #include <assert.h>
@@ -69,6 +69,16 @@ int main(int argc,char **argv){
    assert(light.width!=heavy.width||light.height!=heavy.height||light.pitch!=heavy.pitch||memcmp(copy,heavy.pixels,n)!=0);
    free(copy);puts("PASS variable wght300/700 produces distinct hinted glyphs");
   }
+  uint64_t style_hashes[4]={0};
+  for(unsigned style=0;style<4;++style){
+   ttf_mono_bitmap_t styled;
+   assert(ttf_render_styled(face,'m',stbtt_ScaleForPixelHeight(&info,48),-1,0,true,style,&styled));
+   uint64_t hash=1469598103934665603ULL;
+   for(int y=0;y<styled.height;++y)for(int x=0;x<styled.width;++x)hash=(hash^styled.pixels[y*styled.pitch+x])*1099511628211ULL;
+   for(unsigned prior=0;prior<style;++prior)assert(style_hashes[prior]!=hash);
+   style_hashes[style]=hash;
+  }
+  puts("PASS four synthetic family styles have distinct real FreeType rasters");
   source.fail=true;ttf_mono_bitmap_t unavailable;
   assert(!ttf_mono_render(face,'H',stbtt_ScaleForPixelHeight(&info,73),-1,&unavailable));
   source.fail=false;assert(ttf_mono_render(face,'H',stbtt_ScaleForPixelHeight(&info,73),-1,&unavailable));

@@ -110,6 +110,9 @@ int main(void){
 '''
 
 PRESENT = r'''
+bool app_settings_screen_inverted(void){return false;}
+EpdRect epd_full_screen(void){return (EpdRect){0,0,W,H};}
+void continuous_du_reset(void){}
 int main(void){
  (void)owner_b;
  for(int mode=0;mode<3;mode++)for(int old=0;old<4;old++)for(int next=0;next<4;next++){

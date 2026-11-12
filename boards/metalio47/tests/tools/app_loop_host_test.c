@@ -46,12 +46,14 @@ static bool check_clean_action;
 static unsigned clean_action_fulls;
 typedef struct { int x, y, count, error; } sample_t;
 static sample_t samples[32];
+static int release_position_step=-1;
 static int sample_count, step, ticks, enters, exits, touch_calls, keys[3], events[16];
 static int menus, highlights, restores, fulls, mode, tick_consumed[32];
 static int long_keys;
 static uint8_t idle_minutes;
 static bool download_session;
 bool app_download_active(void) { return download_session; }
+static bool last_lock_automatic;
 static int idle_locks, before_locks, lock_feedback_calls, lock_badges, wake_clean_requests;
 static bool feedback_enabled;
 static bool online_busy;
@@ -64,7 +66,7 @@ static int slider_partial_draws,slider_forced_draws;
 static int button_draws,button_partial_draws;
 static int network_ready_step=-1,wifi_stop_step=-1;
 static int status_partial_draws;
-static int quick_draws, quick_opens, quick_du, wifi_starts, wifi_stops, ble_resets, click_presses, click_restores;
+static int quick_draws, quick_opens, quick_closes, quick_du, wifi_starts, wifi_stops, ble_resets, click_presses, click_restores;
 
 static int persistent_ripple_height;
 static int edge_returns,back_ripples,monochrome_calls,last_ripple_dir;
@@ -188,7 +190,7 @@ int ui_ai_menu_feed(ui_ai_menu_t*m,const app_ctx_t*c,bool valid){
 EpdRect ui_ai_menu_save_error(ui_ai_menu_t*m,uint8_t*f){(void)f;return m->rect;}
 const void *display_main_gray_waveform(void){return &E0470_WAVEFORM;}
 int metalio_take_volume(void) {if(step!=volume_step)return 0;volume_step=-1;return volume_value;}
-void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool enabled,unsigned b,unsigned w,bool soften_text) {assert(!soften_text);(void)fb;(void)wifi;(void)bluetooth;assert(enabled==light_enabled&&b==light_brightness_position&&w==light_warmth_position);fb[0]=0xaa;++quick_draws;}
+void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool enabled,bool inverted,unsigned b,unsigned w,bool soften_text) {assert(!soften_text);(void)fb;(void)wifi;(void)bluetooth;(void)inverted;assert(enabled==light_enabled&&b==light_brightness_position&&w==light_warmth_position);fb[0]=0xaa;++quick_draws;}
 void ui_quick_menu_draw_slider(uint8_t *fb,bool warmth,unsigned value) {
  (void)fb;unsigned expected=warmth?metalio_frontlight_position(true):ui_quick_brightness_position(metalio_frontlight_position(false));
  int raw=UI_QUICK_SLIDER_Y1-samples[step].y;if(raw<0)raw=0;if(raw>UI_QUICK_SLIDER_RANGE)raw=UI_QUICK_SLIDER_RANGE;
@@ -234,7 +236,7 @@ bool ui_click_feedback_cancel_at(int x,int y) {return x>120||y!=1141;}
 int cst836u_read(void* h, cst836u_touch_t* t) {
     (void)h;
     sample_t s = samples[step];
-    *t = (cst836u_touch_t){ .touched=s.count>0, .count=s.count, .x=s.x, .y=s.y };
+    *t = (cst836u_touch_t){ .touched=s.count>0, .count=s.count, .x=s.x, .y=s.y, .release_position_valid=step==release_position_step };
     t->points[0].active=s.count>0;
     return s.error;
 }
@@ -248,6 +250,11 @@ bool continuous_du_init(void) {return true;}
 void display_request_full_refresh(void) {++wake_clean_requests;}
 void guard_draw_result(EpdiyHighlevelState* h,enum EpdDrawError e) {(void)h;assert(e==0);}
 enum EpdDrawError update_display_area_with(EpdiyHighlevelState*h,const void*w,int m,EpdRect a) {(void)h;(void)w;(void)a;panel_marker=frame[0];nav_area_draws+=nav_armed!=NULL;nav_armed=NULL;if(m==MODE_DU)du_areas++;else if(m==MODE_GL16)gl_areas++;return 0;}
+enum EpdDrawError update_display_reader_panel(EpdiyHighlevelState *h, EpdRect a) {
+    assert(a.x==0&&a.y==0&&a.width==684&&a.height==1216&&frame[0]==0x11&&!nav_armed);
+    ++quick_closes;
+    return update_display_area_with(h,&E0470_WAVEFORM,MODE_GL16,a);
+}
 enum EpdDrawError update_display_full(EpdiyHighlevelState*h) {(void)h;if(check_clean_action&&fulls){assert(frame[0]==0x11);++clean_action_fulls;}panel_marker=frame[0];fulls++;nav_full_arms+=nav_armed!=NULL;nav_armed=NULL;return 0;}
 enum EpdDrawError update_display_mode(EpdiyHighlevelState*h,int m) {(void)h;(void)m;mode++;return 0;}
 enum EpdDrawError update_display_mode_diff(EpdiyHighlevelState*h,int m) {(void)h;(void)m;mode++;return 0;}
@@ -269,7 +276,7 @@ bool ui_nav_refresh_power(uint8_t *fb) {
 }
 EpdRect ui_nav_status_area(void) {return (EpdRect){0,12,684,56};}
 read_pico_pmu_key_action_t read_pico_pmu_take_key_action(void) {return step==power_trigger_step?READ_PICO_PMU_KEY_LONG:READ_PICO_PMU_KEY_SHORT;}
-void enter_lock_and_sleep(EpdiyHighlevelState*h,int64_t*t,void*a,void*tp,bool reader) {(void)tp;(void)h;(void)t;(void)a;(void)reader;assert(!nav_armed);if(check_clean_action)assert(frame[0]==0x11&&panel_marker==0x11);++idle_locks;lock_due=false;time_offset+=1000000;}
+void enter_lock_and_sleep(EpdiyHighlevelState*h,int64_t*t,void*a,void*tp,bool automatic) {(void)tp;(void)h;(void)t;(void)a;last_lock_automatic=automatic;assert(!nav_armed);if(check_clean_action)assert(frame[0]==0x11&&panel_marker==0x11);++idle_locks;lock_due=false;time_offset+=1000000;}
 void app_lock_set_resume_ready(bool ready) {(void)ready;}
 void app_lock_feedback(EpdiyHighlevelState*h) {(void)h;++lock_feedback_calls;if(feedback_enabled){assert(!before_locks&&!idle_locks);++lock_badges;}}
 void app_lock_wait_key_idle(int ms) {(void)ms;}
@@ -359,7 +366,7 @@ static void reset(void) {
     ble_enabled=saved_wifi=upload_busy=click_enabled=click_active=false;
     transfer_status=(read_pico_transfer_status_t){0};
     recent_cancels=status_draws=status_partial_draws=0;
-    recent_requests=quick_draws=quick_opens=quick_du=wifi_starts=wifi_stops=ble_resets=click_presses=click_restores=0;
+    recent_requests=quick_draws=quick_opens=quick_closes=quick_du=wifi_starts=wifi_stops=ble_resets=click_presses=click_restores=0;
     main_fast=main_water=false;shelf_exit_arms=0;idle_minutes=0;idle_locks=before_locks=lock_feedback_calls=lock_badges=wake_clean_requests=0;feedback_enabled=false;online_busy=false;
     nav_arms=nav_draws=nav_full_arms=nav_area_draws=0;nav_armed=NULL;
     main_source_visible=main_target_visible=true;
@@ -370,6 +377,7 @@ static void reset(void) {
     home_enters=home_renders=0;rendered_leaf=-1;last_menu_leaf=-1;menu_background=NULL;
     full_tick=lock_due=font_due=shake_activity=false;time_offset=0;time_step=10000;du_areas=gl_areas=0;
     memset(samples,0,sizeof(samples));memset(keys,0,sizeof(keys));memset(events,0,sizeof(events));memset(tick_consumed,0,sizeof(tick_consumed));
+    release_position_step=-1;
     sample_count=step=ticks=enters=exits=touch_calls=menus=highlights=restores=fulls=mode=0;
     request_on_touch=request_on_tick=menu_on_tick=menu_on_touch=cancel_clobber=false;response=APP_REDRAW_NONE;
     first=(app_desc_t){.title="first",.render=render,.on_enter=enter,.on_exit=leave,.on_touch=touch,.on_tick=tick,.on_key=key};
@@ -401,7 +409,20 @@ static app_redraw_t nav_return_tick(app_ctx_t* ctx) {
 }
 static void enter_with_pending_tab(app_ctx_t* ctx){enter(ctx);ctx->request_app=&second;}
 static app_redraw_t main_late_tick(app_ctx_t* ctx) {(void)ctx;return step == 1 ? response : APP_REDRAW_NONE;}
+static unsigned done_present_calls;
+static bool done_present_probe(app_ctx_t *ctx, app_redraw_t redraw) {
+    (void)ctx;(void)redraw;++done_present_calls;return true;
+}
 int main(void) {
+    // 覆盖层已显示时不得调用底页输出。/ An already presented overlay must bypass the underlying page presenter.
+    reset();
+    app_ctx_t done_ctx={0};
+    app_desc_t done_page={.present=done_present_probe};
+    app_present(&done_ctx,&done_page,APP_REDRAW_DONE);
+    assert(!done_present_calls);
+    app_present(&done_ctx,&done_page,APP_REDRAW_PAGE);
+    assert(done_present_calls==1);
+
     // 第一帧报点立即切页，尚未抬手也能响应；同次停留和释放不重复。
     // The first contact switches before lift; its subsequent hold and release never repeat navigation.
     for(int policy=0;policy<3;++policy) {
@@ -460,6 +481,10 @@ int main(void) {
     reset();response=APP_REDRAW_AREA;add(100,400,1,0);run();assert(touch_calls==1&&tick_consumed[0]);
     reset();first.on_gesture=gesture;response=APP_REDRAW_AREA;add(100,400,1,0);add(0,0,0,0);run();
     assert(!touch_calls&&events[UI_GESTURE_PRESS]==1&&events[UI_GESTURE_TAP]==1&&tick_consumed[0]);
+    // The touch feed kept the last coordinate while the display blocked intermediate UI reads.
+    reset();first.on_gesture=gesture;release_position_step=1;
+    add(342,1160,1,0);add(342,1070,0,0);run();
+    assert(events[UI_GESTURE_PRESS]==1&&events[UI_GESTURE_SWIPE_U]==1&&!events[UI_GESTURE_TAP]);
     reset();first.on_gesture=gesture;add(100,400,1,0);add(0,0,0,9);add(100,400,1,0);add(0,0,0,0);run();
     assert(events[UI_GESTURE_PRESS]==1&&events[UI_GESTURE_CANCEL]==1&&!events[UI_GESTURE_TAP]);
     reset();request_on_touch=true;menu_on_touch=true;add(100,400,1,0);run();assert(enters==2&&exits==1&&ticks==0&&!menus);
@@ -576,7 +601,7 @@ int main(void) {
     assert(media_lost==2&&builtin_opens==2&&!probes&&font_opens==1);
     reset();idle_minutes=1;time_step=60000000;first.on_before_lock=before_lock;
     add(0,0,0,0);add(0,0,0,0);run();
-    assert(idle_locks==1&&before_locks==1&&wake_clean_requests==1); // Real scheduler flushes before automatic lock.
+    assert(idle_locks==1&&last_lock_automatic&&before_locks==1&&wake_clean_requests==1); // Real scheduler flushes before automatic lock.
     reset();idle_minutes=1;time_step=60000000;shake_activity=true;
     add(0,0,0,0);run();assert(!idle_locks);
     reset();idle_minutes=1;time_step=60000000;shake_activity=true;
@@ -646,7 +671,7 @@ int main(void) {
     reset();first.on_gesture=gesture;
     add(300,20,1,0);add(300,110,1,0);add(300,120,1,0);add(0,0,0,0);
     add(300,500,1,0);add(0,0,0,0);add(100,400,1,0);add(0,0,0,0);run();
-    assert(quick_draws==1&&quick_opens==1&&!quick_du&&fulls==2);
+    assert(quick_draws==1&&quick_opens==1&&quick_closes==1&&gl_areas==2&&!du_areas&&fulls==1);
     assert(events[UI_GESTURE_PRESS]==1&&events[UI_GESTURE_TAP]==1);
     reset();main_fast=true;saved_wifi=true;
     add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
@@ -666,14 +691,18 @@ int main(void) {
     assert(quick_opens==1&&quick_draws==1&&button_partial_draws==4&&status_partial_draws==2&&status_draws==2&&button_draws==4);
     reset();first.on_before_lock=before_lock;
     add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
-    add(244,284,1,0);add(0,0,0,0);add(100,284,1,0);add(0,0,0,0);run();
+    add(186,284,1,0);add(0,0,0,0);add(100,284,1,0);add(0,0,0,0);run();
     assert(!idle_locks&&!before_locks&&fulls>=2&&!touch_calls&&!light_enabled&&light_brightness==30&&light_saves==1&&haptics==2);
     assert(quick_opens==1&&button_partial_draws==3&&button_draws==3);
     for(int policy=0;policy<3;++policy){
         reset();main_fast=policy==1;main_water=policy==2;check_clean_action=true;
         add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
         add(100,284,1,0);add(0,0,0,0);add(100,500,1,0);add(0,0,0,0);run();
-        assert(clean_action_fulls==1&&quick_draws==1&&touch_calls==1);
+        assert(clean_action_fulls==1&&!quick_closes&&quick_draws==1&&touch_calls==1);
+        reset();main_fast=policy==1;main_water=policy==2;
+        add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
+        add(300,500,1,0);add(0,0,0,0);run();
+        assert(quick_opens==1&&quick_closes==1&&gl_areas==2&&!du_areas&&fulls==1);
     }
     // 网络ready只改变内部状态，不重画菜单；异步WiFi停止只刷WiFi圆钮。
     // Network readiness is nonvisual; an asynchronous stop refreshes only its WiFi control.
@@ -684,7 +713,7 @@ int main(void) {
     add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);run();
     assert(quick_opens==1&&quick_draws==1&&button_draws==1&&button_partial_draws==1);
     reset();light_enabled=false;light_brightness=light_brightness_position=0;
-    add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);add(244,284,1,0);add(0,0,0,0);run();
+    add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);add(186,284,1,0);add(0,0,0,0);run();
     assert(light_enabled&&light_brightness_position==72&&button_draws==2&&slider_draws==1&&quick_opens==1&&!slider_forced_draws);
     reset();time_step=100000;
     add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
@@ -745,7 +774,7 @@ int main(void) {
         reset();main_fast=policy==1;main_water=policy==2;feedback_enabled=true;
         first.on_before_lock=before_lock;lock_due=true;time_step=3000000;
         add(0,0,0,0);add(0,0,0,0);run();
-        assert(lock_badges==1&&lock_feedback_calls==1&&before_locks==1&&idle_locks==1);
+        assert(lock_badges==1&&lock_feedback_calls==1&&before_locks==1&&idle_locks==1&&!last_lock_automatic);
         reset();feedback_enabled=true;first.on_power_short=consume_power;lock_due=true;time_step=3000000;
         add(0,0,0,0);add(0,0,0,0);run();assert(!lock_badges&&!lock_feedback_calls&&!before_locks&&!idle_locks);
         reset();feedback_enabled=true;idle_minutes=1;time_step=60000000;first.on_before_lock=before_lock;
@@ -931,6 +960,8 @@ int main(void) {
 /* 中文：硬件 BLE 与联网任务替身。/ English: Hardware BLE and online worker shims. */
 void ble_pt_sync(bool enabled) { (void)enabled; }
 void ble_pt_poll(void) {}
+bool ble_pt_running(void) { return false; }
+bool ble_pt_stop_failed(void) { return false; }
 bool pico_online_busy(void) { return online_busy; }
 
 uint8_t app_settings_auto_lock_minutes(void){return idle_minutes;}
@@ -945,6 +976,7 @@ void ui_avatar_invalidate(void) {}
 bool ui_avatar_quiesce(unsigned timeout){(void)timeout;return true;}
 bool book_cover_jobs_quiesce(unsigned timeout){(void)timeout;return true;}
 void book_lock_collage_invalidate(void) {}
+void metalio_cover_cache_clear(void) {}
 
 bool ble_pt_connected(void) { return false; }
 bool ble_pt_scanning(void){return false;}

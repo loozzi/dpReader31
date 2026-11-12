@@ -78,7 +78,14 @@ static book_layout_draw_cursor_t s_prep_cursor;
 static SemaphoreHandle_t s_draw_lock,s_prep_done;
 static TaskHandle_t s_prep_task;
 static atomic_bool s_prep_stop;
-static unsigned work,allocs;static bool fail_alloc,fail_draw,wallpaper,images;
+static unsigned work,allocs;
+static bool fail_alloc,fail_draw,wallpaper,images,raster_failure;
+static bool s_reader_resume_pending,s_reader_raster_failed;
+static const char *s_font_path="reader",*active_font="reader";
+static uint32_t glyph_failures;
+static uint32_t ttf_font_glyph_failures(void){return glyph_failures;}
+static bool ttf_font_ready(void){return true;}
+static const char *ttf_font_path(void){return active_font;}
 static size_t free_space=4u*1024u*1024u;
 static size_t fb_bytes(void){return 128;}
 static size_t book_layout_page_count(void){return 500;}
@@ -96,8 +103,14 @@ static pthread_mutex_t row_lock=PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t row_cond=PTHREAD_COND_INITIALIZER;
 static bool gate_rows;
 static unsigned row_entries,row_permits;
+static bool reader_layout_font_changed(void){return strcmp(ttf_font_path(),s_font_path)!=0;}
+static bool text_contrast;
+static bool app_settings_book_text_contrast(void){return true;}
+static bool ttf_set_text_contrast(bool enabled){bool old=text_contrast;text_contrast=enabled;return old;}
 static int book_layout_draw_slice(uint8_t *fb,size_t page,EpdRect area,int px,book_layout_draw_cursor_t *cursor){
+    assert(text_contrast);
  (void)area;assert(px==48&&(page<=s_page+2&&(page>=s_page||s_page-page<=1)));if(fail_draw)return -1;
+ if(raster_failure)++glyph_failures;
  if(cursor->generation&&cursor->generation!=generation)return -1;
  if(cursor->offset==36)return 1;
  pthread_mutex_lock(&row_lock);++row_entries;pthread_cond_broadcast(&row_cond);
@@ -110,7 +123,7 @@ static int book_layout_draw_slice(uint8_t *fb,size_t page,EpdRect area,int px,bo
 }
 static int s_px=48;
 '''
-for name in ['lock_draw','unlock_draw','invalidate_prep','reader_prefetch_step','reader_prefetch_target','prep_task','kick_prep','reader_prefetch_end','reader_prefetch_resume','reader_prefetch_idle']:
+for name in ['lock_draw','unlock_draw','invalidate_prep','pause_reader_prep','reader_prefetch_step','reader_prefetch_target','prep_task','kick_prep','reader_prefetch_end','reader_prefetch_resume','reader_prefetch_idle']:
  unit+=function(name,book)+'\n'
 prep=function('prep_task',book)
 assert prep.index('lock_draw();')<prep.index('metalio_cpu_guard_begin()')<prep.index('metalio_cpu_guard_end(&cpu_scope)')<prep.rindex('unlock_draw();')<prep.rindex('xSemaphoreGive(s_prep_done);')
@@ -160,6 +173,10 @@ int main(void){touch_t touch={0};app_ctx_t ctx={.touch=&touch};
  old=work;reader_prefetch_idle(&ctx);assert(work>old&&work<=old+8&&s_next_page==-1);
  ++generation;assert(!reader_prefetch_resume(s_prep_page));invalidate_prep();
  fail_task=true;assert(!kick_prep());fail_task=false;fail_draw=true;reader_prefetch_idle(&ctx);assert(s_prep_page==-1&&s_next_page==-1);fail_draw=false;
+ invalidate_prep();s_reader_resume_pending=true;assert(!kick_prep());s_reader_resume_pending=false;
+ active_font="system";assert(!kick_prep());active_font=s_font_path;
+ raster_failure=true;reader_prefetch_idle(&ctx);raster_failure=false;
+ assert(!s_next_fb&&s_prep_page==-1&&!reader_page_cache_find(s_page+1,generation,fb_bytes()));
  invalidate_prep();images=true;assert(!kick_prep());images=false;wallpaper=true;assert(!kick_prep());wallpaper=false;
  s_toolbar=true;assert(!kick_prep());s_toolbar=false;s_reader_panel=READER_PANEL_FONT;assert(!kick_prep());s_reader_panel=READER_PANEL_NONE;
  destroy_worker();invalidate_prep();s_path="/flash/books/book.epub";

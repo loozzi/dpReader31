@@ -1,9 +1,217 @@
-# Nhật ký thay đổi / Changelog
-
-## dpReader 1.3.2-vn · Chưa phát hành
+## dpReader 1.4.6-vn · Chưa phát hành
 
 - Thanh điều hướng dưới cùng chuyển sang capsule nổi màu kính mờ, với nền riêng cho mục đang chọn; giữ nguyên bốn mục và vùng chạm, hỗ trợ giao diện hai mục.
 - Cập nhật nền chọn bằng refresh xám cục bộ; phản hồi nhấn lấy lại nền mới sau khi chuyển trang.
+
+
+## dpReader 1.4.5-vn / 1.4.5-love-vn · 2026-11-12
+
+- Thêm **Flash** trong Hiệu ứng lật trang. Flash quét đồng thời toàn màn hình, hỗ trợ ảnh và Đảo Màu.
+- Sóng Nước trong trình đọc dùng 6 dải, quét sát mép trên để xử lý dấu tiếng Việt ở dòng đầu. Khi bật Khử răng cưa, tăng hai xung cho điểm ảnh chuyển sang đen và giữ 41 nhịp quét.
+- Thêm **Tương phản chữ** trong Phông chữ → Tùy chỉnh để làm tối viền chữ khi bật Khử răng cưa.
+
+## dpReader 1.4.4-vn / 1.4.4-love-vn · 2026-11-12
+
+- Cài đặt đọc và phông chữ dùng chung cho mọi cuốn. Tiến độ vẫn lưu riêng.
+- EPUB hiển thị tiêu đề chương từ sách, căn giữa số và tên chương khi sách tách hai phần, chừa thêm 8 px trước nội dung. Có tùy chọn chữ cái đầu đoạn lớn khi đọc ngang.
+- Sửa giãn đoạn với EPUB dùng hai thẻ xuống dòng liên tiếp. Khôi phục chữ đậm, nghiêng và đậm nghiêng sau khi mở khóa hoặc quay lại từ mục lục.
+- KoSync tra vị trí đọc mà vẫn giữ font của cuốn đang mở.
+- Pop menu của giao diện Love phủ sát hai mép và đáy. Sóng Nước áp dụng khi mở các mục, quay từ Cài đặt hoặc trình đọc về Đọc tiếp. Bật Khử răng cưa tự chọn Sóng Nước cho lật trang, người dùng có thể đổi sau.
+
+## dpReader 1.4.3-vn / 1.4.3-love-vn · 2026-11-11
+
+- Khôi phục lề và giãn dòng riêng của sách khi mở lại. Giãn dòng và giãn đoạn dùng mốc 40 px để mỗi 10% tương ứng 4 px.
+- Thu gọn thanh trạng thái trong trình đọc. Căn ba nhãn footer và mở rộng Thanh Đáy 12 px hết chiều ngang màn hình. Tên chương dài được cắt theo từ.
+- Font Google tải mới lưu theo tên bộ font. Font tải từ bản cũ hiển thị đúng tên trong danh sách.
+- Bật lại OTA trên bố cục NVS 256 KiB. Từ 1.4.2, nạp ứng dụng qua USB một lần để lên 1.4.3. Từ 1.4.1 trở xuống, nạp toàn phần qua Web Flash.
+
+## dpReader 1.4.2RC5-vn / 1.4.2RC5-love-vn · thử cục bộ · 2026-11-10
+
+## dpReader 1.4.2-vn · 2026-11-11
+
+- NVS chung 256 KiB, cài lần đầu qua USB khi chuyển từ bố cục cũ.
+- Sáu phím Bluetooth có thể học và gán chức năng riêng. Đọc EPUB hỗ trợ bộ phông Regular/Bold/Italic/BoldItalic.
+- Đảo màu trong Hiển thị, Quick Setting và gán phím cứng. Lật trang ở chế độ đảo màu dùng DU20/GL vi sai theo điểm ảnh thay đổi.
+- Kiểm tra cập nhật trên máy hướng dẫn vào trang Flash. Trang nhận diện bố cục và xác nhận trước khi cài sạch.
+
+
+- Dùng I²C 100 kHz theo bo gốc cho RTC PCF8563. Thử lại khi ghi hoặc đọc xác minh bị lỗi và ghi rõ bước lỗi trong log.
+- S31 xác minh thời gian đã ghi ngay trong driver RTC và phục hồi giờ lúc khởi động từ RTC hợp lệ.
+
+## dpReader 1.4.2RC4-vn / 1.4.2RC4-love-vn · thử cục bộ · 2026-11-10
+
+- Học tối đa sáu phím cho mỗi phụ kiện BLE. Chọn tác vụ trước khi học và có thể dùng một tác vụ cho nhiều phím.
+- Giữ phím Trang trước/Trang sau đã học từ hồ sơ SD cũ. Hồ sơ SD lưu đủ sáu ô; bản sao lưu cấu hình v32 chỉ chứa cặp Trang trước/Trang sau.
+
+## dpReader 1.4.2RC3-vn / 1.4.2RC3-love-vn · thử cục bộ · 2026-11-10
+
+- Bỏ phân vùng `nvs_old` và luồng chuyển dữ liệu. Bộ cài USB tạo NVS 256 KiB và `/flash` trống trong lần cài đầu.
+
+## dpReader 1.4.2RC2-vn / 1.4.2RC2-love-vn · thử cục bộ · 2026-11-10
+
+- Sửa lỗi bộ cài USB ngừng đọc NVS trên S31. Dùng stub trong RAM để đọc, giữ ROM cho thao tác ghi flash.
+- Khi sao lưu chưa hoàn tất, chạy lại launcher sẽ lưu vào thư mục mới và giữ bản sao lưu dở.
+
+## dpReader 1.4.2RC1-vn / 1.4.2RC1-love-vn · thử cục bộ · 2026-11-10
+
+- Tăng NVS chung lên 256 KiB tại `0xFB0000`; giữ vùng NVS cũ tại `0x9000` và địa chỉ OTA.
+- Bộ cài USB sao lưu NVS và storage, dựng lại FAT 5.625 MiB, đối chiếu dữ liệu và ghi bảng phân vùng cuối cùng. Hỗ trợ tiếp tục từ backup nếu USB gián đoạn.
+- Firmware từ chối bố cục cũ và không tự định dạng `/flash` khi mount thất bại. Ghi thống kê NVS/namespace vào log khởi động, không ghi giá trị khóa.
+- Chỉ cài chuyển đổi bằng USB; chưa xác nhận trên thiết bị. Xem [quy trình NVS256](NVS256_MIGRATION.md).
+
+## dpReader 1.4.1-vn / 1.4.1-love-vn · 2026-11-10
+
+- Sửa lỗi nút Bluetooth đã học có thể lật hai trang trong một lần bấm.
+- Lưu tối đa bốn hồ sơ Bluetooth và phím đã học trên thẻ SD, hỗ trợ chuyển dữ liệu cũ và phục hồi từ bản sao có checksum. Khóa ghép đôi vẫn dùng NVS.
+- Rút thời gian hiện thông báo và nút quay lại sau khi nhảy trang hoặc chương xuống hai giây.
+- Bỏ trao đổi ghi chú KOReader tự động khỏi luồng đọc. Giữ ghi chú và highlight cục bộ cùng đồng bộ vị trí đọc KoSync.
+
+## dpReader 1.4.0-vn / 1.4.0-love-vn · 2026-11-09
+
+- Khắc phục lỗi NVS đầy làm đổi font thất bại hoặc chặn mở sách.
+- Lưu tiến độ và tùy chọn trình bày riêng từng cuốn vào thư mục ẩn trên thẻ. Tiếp tục đọc tiến độ cũ và hỗ trợ sao lưu, khôi phục.
+
+## dpReader 1.3.9-vn / 1.3.9-love-vn · 2026-11-08
+
+- Sao lưu và khôi phục thêm cài đặt đọc, phím, nút lật trang Bluetooth đã học, tùy chọn hệ thống, đèn, rung và chống phai. Lưu tối đa 6 mạng Wi-Fi theo thứ tự ưu tiên và tiếp tục đọc được tệp sao lưu cũ.
+- Thẻ đọc sách của Love Book dùng bìa lớn hơn và tên sách dài có thể xuống hai dòng. Câu “Lưu giữ dấu ấn…” thay hai dòng thống kê, nằm sát chân thẻ bên dưới tiến độ đọc.
+
+## dpReader 1.3.8-vn / 1.3.8-love-vn · 2026-11-08
+
+- Khắc phục lỗi mất chữ khi thức dậy vào sách. Trang chỉ được dựng khi thẻ nhớ và font đọc sẵn sàng. Khung dựng thiếu chữ được bỏ khỏi bộ đệm và tự thử lại, giữ vị trí đọc.
+- Giảm nguy cơ reset khi thoát Light Sleep bằng cách giữ nguồn P14/VOUT trong lúc ngủ. Nguồn màn hình P5 vẫn tắt khi ngủ. Mức hao pin chờ cần được đo trên thiết bị.
+- Cải thiện nhận nút nguồn và nút âm lượng khi đánh thức, kể cả với cú bấm ngắn.
+- Màn hình tự khóa kiểu Thẻ đọc sách lấy bìa gốc từ EPUB nếu bộ đệm chưa có ảnh.
+- Bổ sung tác vụ Khóa màn hình cho các phím hỗ trợ. Danh sách phím và hộp gán tác vụ dùng hai cột. Phím giữa được đổi tên thành Nút tròn.
+
+## dpReader 1.3.7-vn / 1.3.7-love-vn · 2026-11-07
+
+- Báo cáo crash Full và Love Book lưu thêm địa chỉ gọi (`ra`) và thông điệp lỗi gốc của ESP-IDF vào bộ nhớ RTC để phân tích chính xác lần khởi động lại.
+- Khởi tạo I2C và mở rộng GPIO TCA9555 trên Metalio S31 có cơ chế khôi phục xung nhịp và thử lại khi bus bận sau reset, khắc phục triệt để lỗi crash khởi động sớm.
+- Cập nhật tiến trình kiểm tra báo cáo lỗi ngay sau màn khóa và khung hình đầu tiên, đảm bảo ghi nhận đầy đủ sự kiện và thời gian hoạt động.
+- Chuyển tùy chỉnh chân trang sang Cài đặt đọc → Status & Footer. Có thể ẩn thanh trạng thái hoặc chân trang để dành chỗ cho nội dung sách.
+- I Love Book dùng nền đen họa tiết ô trám khi chưa có ảnh bìa. Bìa tạm hiển thị logo dpReader xám sáng.
+
+## dpReader 1.3.6-vn / 1.3.6-love-vn · 2026-11-07 (Tạm thu hồi / Withdrawn)
+
+- Bản 1.3.6 tạm thời được gỡ bỏ khỏi Web Flash và kênh OTA; toàn bộ tính năng và cải tiến của 1.3.6 được tích hợp và phát hành trong dpReader 1.3.7.
+
+## dpReader 1.3.5-vn / 1.3.5-love-vn · 2026-11-07
+
+- Full và Love Book dùng chung hộp thông báo mở/đóng sách giữa màn hình, thu gọn còn 320 × 76 px.
+
+- Khôi phục quyền bật Wi-Fi sau khi thoát màn khóa lúc khởi động hoặc hủy chuyển sang chế độ ngủ/nạp qua USB. Sửa lỗi truyền tệp cùng mạng hết thời gian chờ trước khi Wi-Fi được bật.
+- Trình mở sách trên máy chỉ liệt kê thư mục và sách TXT/EPUB. Ẩn thư mục hồ sơ Wi-Fi, tệp cấu hình và log hệ thống.
+
+- Full và Love Book lưu tối đa 6 mạng Wi-Fi trên thẻ nhớ. Khi cần Wi-Fi, máy ưu tiên mạng vừa lưu và tự thử mạng kế tiếp nếu kết nối thất bại.
+
+- Lưu tiến độ dự phòng trên thẻ khi NVS đầy, kiểm tra checksum và giữ snapshot trước để phục hồi sau ghi gián đoạn. Hỗ trợ tiếp tục đọc, sách gần nhất, danh sách và xóa tiến độ. Bỏ trạng thái “Chưa lưu” khỏi footer.
+
+- Ưu tiên lật trang liên tục. Ghi tiến độ theo mốc 8 trang và thống kê được dời tới khi ngừng đọc 1,2 giây, vẫn lưu khi thoát sách hoặc khóa máy. Đọc pin, ghi báo lỗi và khởi động mạng tự động nhường thao tác đọc.
+- Lật trang khi thanh công cụ mở giữ cache chữ đã hoàn thành và dùng đường chuyển ảnh theo thay đổi thực tế. Chạm trang không có tham chiếu chú thích bỏ qua lượt duyệt lại chữ.
+- Log đọc bổ sung thời điểm nhấc tay và lý do chọn lượt quét thường hoặc làm mới toàn trang.
+
+- S31 chờ tác vụ mạng đang dùng Wi-Fi bàn giao trước khi mở truyền sách, cho thử lại từ màn báo lỗi và kiểm tra dung lượng thẻ ở tác vụ nền sau khi mạng sẵn sàng.
+- Love Book dùng cập nhật theo vùng thay đổi khi mở hoặc đóng thanh công cụ trên trang chữ.
+
+- Giữ điểm cuối của cú vuốt khi máy đang quét màn hình. Vuốt chân trang về Home thực hiện khi nhấc tay, cùng nhịp với thao tác mở công cụ đọc.
+
+- Tắt Bluetooth ở tác vụ riêng để trình đọc tiếp tục nhận cảm ứng. Cài đặt báo trạng thái đang tắt, đã tắt hoặc chưa dừng được dựa trên kết quả thu hồi thực tế.
+
+- Ưu tiên cử chỉ đang thực hiện trong trình đọc. Lệnh lật trang BLE đến cùng lúc được bỏ qua để tránh ngắt cử chỉ hoặc lật thêm trang sau khi nhấc tay.
+
+- Thu hẹp vùng chạm chú thích EPUB để chạm vào chữ bên cạnh vẫn lật trang bình thường.
+
+- Love Book: vuốt sang trái trên màn hình I Love Book, kể cả vuốt chéo, để mở Pop menu.
+
+## dpReader 1.3.4-vn / 1.3.4-love-vn · 2026-11-06
+
+- Chạm tham chiếu chú thích EPUB để đọc trong popup. Popup chú thích và từ điển ngắt dòng theo từ.
+- Cảm ơn [@loozzi](https://github.com/loozzi) đã đóng góp tính năng popup chú thích EPUB trong [PR #1](https://github.com/dephia31/dpReader31/pull/1).
+
+## dpReader 1.3.3-vn / 1.3.3-love-vn · 2026-11-06
+
+### Giới thiệu Love Book
+
+Love Book là firmware gọn cho người muốn mở sách và đọc trực tiếp với giao diện I Love Book. Bản này giữ TXT/EPUB, bìa sách, tiến độ, ghi chú, OPDS, KoSync, Wi-Fi, USB và điều khiển lật trang BLE; bỏ thư viện/kệ sách, PIN và ảnh đại diện.
+
+Để cài, mở [Web Flash dpReader](https://dephia31.github.io/dpReader31/), chọn **Love Book** ở mục phiên bản firmware rồi cắm máy đọc bằng USB và làm theo hướng dẫn. Từ firmware 1.3.3, lần kiểm tra OTA đầu tiên cho chọn Full hoặc Love Book và lưu nhánh cho những lần sau. Nếu chuyển nhánh, thiết bị yêu cầu xác nhận trước khi tải. Máy đang ở bản cũ cần cập nhật lên 1.3.3 trước để có lựa chọn này. Cập nhật từ thẻ nhớ dùng đúng nhánh đang cài.
+
+- Phát hành hai firmware Full và Love Book. Web Flash cho chọn từng bản. Lần OTA đầu tiên cho chọn và lưu nhánh, xác nhận khi chuyển nhánh. Cập nhật thẻ nhớ kiểm tra đúng nhánh đang cài.
+- Love Book dùng I Love Book, mở TXT/EPUB trực tiếp trong Books, duyệt thư mục, xóa có xác nhận và bật USB truyền sách. Bỏ thư viện/kệ sách, PIN và avatar.
+- Bật/tắt footer trong trình đọc. Khi tắt, nội dung sách dùng thêm chiều cao chân trang.
+- Giữ cache bìa Love Book lâu hơn. Full dùng lại cache bìa cho Home, Tủ sách và màn hình chờ, thu gọn theo bộ nhớ.
+- Dọn lại phiên Wi-Fi bị dừng dở trước khi tác vụ tiếp theo dùng mạng.
+- Sao lưu cấu hình thêm tài khoản KoSync/OPDS, tự đồng bộ và công tắc footer, cùng Wi-Fi, cách lật trang, chu kỳ refresh và các mục footer đã có.
+- Loại bỏ Dark mode ở cả hai bản. Mã nguồn dùng chung lõi, tách phần riêng của Full và Love Book.
+
+## dpReader 1.3.3RC13-vn / 1.3.3RC13-love-vn · Bản thử
+
+- Sao lưu cấu hình thêm tài khoản KoSync/OPDS, tự đồng bộ và công tắc footer. Khôi phục cùng Wi-Fi, cách lật trang, chu kỳ làm mới và các tùy chọn footer đã có.
+
+## dpReader 1.3.3RC12-vn / 1.3.3RC12-love-vn · Bản thử
+
+- S31 thử dọn lại phiên Wi-Fi đã dừng dở khi tác vụ kế tiếp cần mạng. Không lấy Wi-Fi khỏi phiên truyền tệp đang hoạt động.
+
+## dpReader 1.3.3RC11-vn / 1.3.3RC11-love-vn · Bản thử
+
+- Love Book bỏ ảnh đại diện và tác vụ nạp ảnh đại diện. Vẫn đổi được tên thiết bị.
+
+## dpReader 1.3.3RC10-vn / 1.3.3RC10-love-vn · Bản thử
+
+- Full giữ cache bìa Home, Tủ sách và Thẻ đọc sách lâu hơn khi đủ PSRAM. Ghép bìa dùng lại ảnh đã xử lý trong cùng cache và vẫn lưu trên thẻ nhớ qua lần khởi động.
+
+## dpReader 1.3.3RC9-vn / 1.3.3RC9-love-vn · Bản thử
+
+- Love Book giữ tối đa bốn bìa gần nhất đã giải mã trong PSRAM và ưu tiên bìa hiện tại khi bộ nhớ thấp. Bìa tạo tự động có thể dùng lại từ RAM cho màn hình chờ.
+
+## dpReader 1.3.3RC8-vn / 1.3.3RC8-love-vn · Bản thử
+
+- Love Book bỏ xác thực PIN khi khởi động và khi thức dậy. Màn hình chờ, Sleep và cách đánh thức bằng nút nguồn vẫn hoạt động.
+
+## dpReader 1.3.3RC7-vn / 1.3.3RC7-love-vn · Bản thử
+
+- Love Book thêm nút Xóa có xác nhận ngay trong trình mở Books.
+- Thêm công tắc Hiện chân trang. Khi tắt, trình đọc dàn trang lại và dùng phần chiều cao của chân trang, giữ vị trí đọc và các tùy chọn chân trang.
+
+## dpReader 1.3.3RC6-vn / 1.3.3RC6-love-vn · Bản thử
+
+- Tổ chức nguồn thành shared / full / love_book, dùng chung một lõi và tách phần thư viện/giao diện riêng.
+- Love Book bỏ module ghép bìa thư viện, bỏ tick phím kệ sách và giảm hàng đợi xử lý bìa từ 9 ô xuống 1 ô cho sách đang đọc.
+
+## dpReader 1.3.3RC5-vn / 1.3.3RC5-love-vn · Bản thử
+
+- Bỏ hoàn toàn Dark screen khỏi Full và Love Book; giao diện và ảnh dùng mức sáng gốc, không áp dụng thiết lập Dark screen cũ.
+
+## dpReader 1.3.3RC4-vn / 1.3.3RC4-love-vn · Bản thử
+
+- Tách firmware Full và Love Book; build mặc định tạo cả hai gói với phiên bản/kiểm tra riêng.
+- Love Book cố định I Love Book, bỏ thư viện/kệ sách và các thiết lập liên quan; dùng trình mở file Books có Bật USB.
+- Chặn OTA/TF cập nhật chéo Full/Love Book; thêm bộ chọn firmware trên Web Flash và gói xem thử Web Flash cục bộ.
+
+## dpReader 1.3.3RC3-vn · Bản thử
+
+- I Love Book: Mở sách mặc định vào Books, duyệt thư mục, hiển thị loại/dung lượng file, nút về Books/thư mục cha/tải lại và vuốt chuyển trang.
+- Thêm Bật USB ngay trong trình mở sách; kết thúc truyền trở lại thư mục vừa mở và đọc lại danh sách.
+
+## dpReader 1.3.3RC2-vn · Bản thử
+
+- Dark screen chỉ áp dụng Home và trình đọc; giữ nguyên ảnh bìa, nền viền bìa và ảnh trong sách. Cài đặt, thư viện, OPDS và màn hình khóa giữ giao diện sáng.
+
+## dpReader 1.3.3RC1-vn · Bản thử
+
+- Thêm Dark screen thử nghiệm trong Cài đặt → Cá nhân hóa; đảo mức xám đầu ra, làm sạch khi bật/tắt và dùng GL48 cho lật trang tối.
+
+## dpReader 1.3.2-vn · 2026-11-05
+
+- Giao diện chỉ còn **Đầy đủ** và **I Love Book**. Lựa chọn Đơn giản cũ chuyển sang I Love Book; chọn giao diện sẽ về Home và làm sạch toàn màn hình.
+- I Love Book hiển thị bìa đang đọc thành cuốn sách hé mở, giữ ảnh xám cho nền viền và dùng bóng tấm giấy giống màn hình khóa.
+- Sửa Quick Settings bị Home vẽ đè sau khi vuốt xuống từ vùng dưới status bar; đóng bảng khôi phục nền bằng GL16.
+- Phục hồi quyền WiFi sau Sleep khi dùng KoSync, OPDS hoặc truyền file; dọn trạng thái lỗi khi tài nguyên đã được giải phóng và hủy yêu cầu truyền file còn chờ khi rời trang.
+- Giữ thêm một trang ảnh EPUB trong PSRAM khi đủ bộ nhớ; giảm xử lý giải mã và thu nhỏ JPEG.
+- Hiện thông báo mở/đóng sách; vuốt lên từ chân trang để về Home. Chỉnh bố cục menu nguồn và tên tệp báo cáo reset theo giờ Việt Nam.
+- Phiên truyền file STA giữ WiFi thức để giảm độ trễ nhận dữ liệu.
+
 
 ## dpReader 1.3.1-vn · 2026-11-04
 

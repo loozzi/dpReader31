@@ -12,7 +12,7 @@ enum EpdRotation { EPD_ROT_LANDSCAPE, EPD_ROT_PORTRAIT,
                    EPD_ROT_INVERTED_LANDSCAPE, EPD_ROT_INVERTED_PORTRAIT };
 enum EpdRotation epd_get_rotation(void);
 enum EpdDrawError { EPD_DRAW_SUCCESS = 0, EPD_DRAW_EMPTY_LINE_QUEUE = 1,
-                    EPD_DRAW_OTHER_ERROR = 2, EPD_DRAW_NO_PHASES_AVAILABLE = 4,
+                    EPD_DRAW_OTHER_ERROR = 2, EPD_DRAW_NO_PHASES_AVAILABLE = 4, EPD_DRAW_FAILED_ALLOC = 8,
                     EPD_DRAW_INVALID_CROP = 0x40 };
 void epd_poweron(void);
 void epd_poweroff(void);

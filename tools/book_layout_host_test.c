@@ -307,7 +307,7 @@ int main(void) {
         {.offset = 10, .len = 3, .heading = true, .chapter_start = true, .image = -1},
         {.offset = 14, .len = 4, .image = -1},
     };
-    EpdRect chapter_rect = {0, 0, 300, 120};
+    EpdRect chapter_rect = {0, 0, 300, 160};
     assert(book_layout_build_blocks(chapters, strlen(chapters), chapter_blocks, 4, chapter_rect, 10));
     // PR9 不包含后来追加的块级 chapter_start 强制分页；这里验证其原始流式行为。
     // PR9 excludes the later block-level forced chapter break; verify its original flow.
@@ -529,7 +529,59 @@ int main(void) {
     drawn[0] = 0; capture_lines = true; captured_count = 0;
     book_layout_draw_page(&fb, 0, r, 20);
     capture_lines = false;
-    assert(captured_count == 3 && captured_y[0] == 20 && captured_y[1] == 50 && captured_y[2] == 115);
+    assert(captured_count == 3 && captured_y[0] == 20 && captured_y[1] == 50 && captured_y[2] == 120);
+    book_layout_free(); html_text_free(&split_title);
+    const char soft_paragraphs[] = "<div>甲<br/>乙<br/> <br/>丙</div>";
+    assert(html_to_blocks(soft_paragraphs, strlen(soft_paragraphs), &split_title) == ESP_OK);
+    assert(!strcmp(split_title.utf8, "甲\n乙\n丙"));
+    const unsigned gaps[] = {0, 50};
+    int line_gaps[2];
+    int paragraph_gaps[2];
+    for (size_t i = 0; i < 2; ++i) {
+        book_layout_set_spacing(150, gaps[i]);
+        assert(book_layout_build_blocks(split_title.utf8, split_title.len, split_title.blocks,
+                                        split_title.count, r, 20));
+        drawn[0] = 0; capture_lines = true; captured_count = 0;
+        book_layout_draw_page(&fb, 0, r, 20);
+        capture_lines = false;
+        assert(captured_count == 3);
+        line_gaps[i] = captured_y[1] - captured_y[0];
+        paragraph_gaps[i] = captured_y[2] - captured_y[1];
+    }
+    assert(line_gaps[1] == line_gaps[0]);
+    assert(paragraph_gaps[1] - paragraph_gaps[0] == 20);
+    book_layout_free(); html_text_free(&split_title);
+    const char chapter_design[] = "<h1><span class='number'>Chương 9</span>"
+        "<span class='title'>Tên chương</span></h1>"
+        "<p class='dropcap'>Aha mot hai ba bon nam sau bay tam chin.</p><p>Sau.</p>";
+    const char chapter_css[] = "h1 span {display:block}";
+    assert(html_to_blocks_with_css(chapter_design, strlen(chapter_design), chapter_css,
+                                  strlen(chapter_css), &split_title) == ESP_OK);
+    assert(!strncmp(split_title.utf8, "Chương 9Tên chương\n", strlen("Chương 9Tên chương\n")));
+    assert(split_title.blocks[0].heading_split == strlen("Chương 9") && split_title.blocks[1].drop_cap);
+    r = (EpdRect){10, 0, 320, 340};
+    book_layout_set_drop_cap(true);
+    assert(book_layout_build_blocks(split_title.utf8, split_title.len, split_title.blocks,
+                                    split_title.count, r, 20));
+    drawn[0] = 0; capture_lines = true; captured_count = 0;
+    book_layout_draw_page(&fb, 0, r, 20);
+    capture_lines = false;
+    assert(!strcmp(captured[0], "Chương 9") && !strcmp(captured[1], "Tên chương"));
+    assert(first_draw_x > r.x && captured_y[2] - captured_y[1] == 82);
+    assert(!strcmp(captured[2], "A") && !strncmp(captured[3], "ha ", 3));
+    char complete[sizeof(drawn)];
+    strcpy(complete, drawn);
+    book_layout_draw_cursor_t cursor = {0};
+    drawn[0] = 0;
+    while (book_layout_draw_slice(&fb, 0, r, 20, &cursor) == 0) {}
+    assert(cursor.complete && !cursor.failed && !strcmp(complete, drawn));
+    book_layout_set_drop_cap(false);
+    assert(book_layout_build_blocks(split_title.utf8, split_title.len, split_title.blocks,
+                                    split_title.count, r, 20));
+    drawn[0] = 0; capture_lines = true; captured_count = 0;
+    book_layout_draw_page(&fb, 0, r, 20);
+    capture_lines = false;
+    assert(!strncmp(captured[2], "Aha ", 4));
     book_layout_free(); html_text_free(&split_title);
     const char separate_html[] = "<h2 style='margin-bottom:1.8em'>第一章</h2><h2>山边小村</h2>";
     assert(html_to_blocks(separate_html, strlen(separate_html), &split_title) == ESP_OK);
@@ -537,7 +589,7 @@ int main(void) {
                                     split_title.count, r, 20));
     drawn[0] = 0;
     book_layout_draw_page(&fb, 0, r, 20);
-    assert(last_draw_y - first_draw_y == 106);
+    assert(last_draw_y - first_draw_y == 112);
     book_layout_free(); html_text_free(&split_title);
     r = (EpdRect){0, 0, 100, 45};
     book_layout_set_chapter_lead(6, 20);
@@ -722,7 +774,7 @@ int main(void) {
     {
         const char* runs_text = "甲甲乙";
         blk_t run_block = {.offset = 0, .len = 9, .image = -1, .run_first = 0, .run_count = 2};
-        html_run_t run_spans[] = {{0, 3, 1}, {3, 6, 2}};
+        html_run_t run_spans[] = {{.offset=0,.len=3,.slot=1}, {.offset=3,.len=6,.slot=2}};
         EpdRect run_box = {40, 0, 80, 60};
         const int old_cjk = test_cjk_advance;
         test_cjk_advance = 10;

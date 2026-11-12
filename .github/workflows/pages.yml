@@ -9,12 +9,14 @@ on:
 permissions:
   contents: write
   pages: write
+  id-token: write
 concurrency:
   group: pages
   cancel-in-progress: false
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,7 +35,17 @@ jobs:
           mkdir -p public/releases
           cp -R source/releases/. public/releases/
           for name in dpReader_metalio47_firmware.bin dpReader_metalio47_full.bin metalio-s31-update.json SHA256SUMS.txt; do
-            cp "source/releases/$name" "public/$name"
+            if [ -f "source/releases/$name" ]; then
+              cp "source/releases/$name" "public/$name"
+            else
+              rm -f "public/$name"
+              rm -f "public/releases/$name"
+            fi
+          done
+          for name in dpReader_metalio47_firmware.bin dpReader_metalio47_full.bin; do
+            if [ ! -f "source/releases/love-book/$name" ]; then
+              rm -f "public/releases/love-book/$name"
+            fi
           done
           touch public/.nojekyll
           cd public
@@ -44,11 +56,21 @@ jobs:
             git commit -m "pages: publish verified firmware from ${GITHUB_SHA}"
             git push origin HEAD:gh-pages
           fi
-      - name: Build the existing legacy Pages site
-        uses: actions/github-script@v7
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload the complete verified site
+        uses: actions/upload-pages-artifact@v3
         with:
-          script: |
-            await github.request('POST /repos/{owner}/{repo}/pages/builds', {
-              owner: context.repo.owner,
-              repo: context.repo.repo
-            });
+          path: public
+  publish:
+    needs: deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy verified Web Flash and OTA
+        id: deployment
+        uses: actions/deploy-pages@v4
+        with:
+          timeout: 600000

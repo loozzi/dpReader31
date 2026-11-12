@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>dpReader Metalio Plus Flasher - Trình Nạp Firmware Web</title>
-  <link rel="stylesheet" href="red-studio.css?v=2">
+  <link rel="stylesheet" href="red-studio.css?v=5">
 </head>
 <body>
   <div class="container">
@@ -65,38 +65,57 @@
         <div><span class="step">2</span> Lựa chọn Firmware & Chế độ nạp</div>
       </div>
 
-      <div class="radio-cards">
-        <label class="radio-card radio-card-first-install active">
-          <input type="radio" name="flash-mode" id="mode-full" checked>
-          <span class="first-install-badge">CÀI MỚI / CÀI TỪ FIRMWARE KHÁC / CỨU MÁY</span>
+      <div class="form-group">
+        <label for="firmware-edition">Phiên bản firmware</label>
+        <select id="firmware-edition">
+          <option value="full">Full — đầy đủ tính năng và thư viện</option>
+          <option value="love-book">Love Book — I Love Book, mở sách bằng file, không TTS/kệ sách</option>
+        </select>
+      </div>
+      <section id="nvs256-guide" class="risk-agreement">
+        <h3>Cập nhật dpReader qua USB</h3>
+        <p><strong>Đang dùng 1.4.1 trở xuống hoặc firmware khác</strong> · Chọn ô <strong>Nạp toàn phần</strong> để nạp ảnh 16 MB. Trước khi nạp, sao lưu cấu hình ra thẻ SD. Nạp toàn phần xóa dữ liệu trong máy và giữ nguyên thẻ SD. Sau khi nạp, chọn <strong>Khôi phục cấu hình từ thẻ nhớ</strong> trong <strong>Cài đặt → Sao lưu &amp; Khôi phục</strong>.</p>
+        <p><strong>Đang dùng 1.4.2</strong> · Chọn ô <strong>Cập nhật ứng dụng</strong> để lên 1.4.5 bằng Web Flash. Bạn cũng có thể dùng bộ cài USB. Khi nhận diện đúng phân vùng NVS 256 KiB, trang chỉ nạp ứng dụng và giữ cài đặt. Từ 1.4.3 có thể cập nhật qua Wi-Fi.</p>
+        <p id="usb-only-guide" hidden>Bản 1.4.2 được chọn trong danh sách luôn cài sạch toàn phần.</p>
+        <p>Chọn Full hoặc Love Book, kết nối Metalio 4.7 S31 ở chế độ BOOT và bấm <strong>Bắt đầu nạp firmware</strong>. Với bộ cài tải về, chạy <code>FLASH_USB.command</code> trên macOS hoặc <code>FLASH_USB.bat</code> trên Windows.</p>
+      </section>
+      <div class="radio-cards" id="flash-modes">
+        <label class="radio-card radio-card-first-install">
+          <input type="radio" name="flash-mode" id="mode-full">
           <h4>Nạp toàn phần</h4>
-          <p>Cài đầy đủ hệ thống cho máy chưa từng cài dpReader hoặc cần cứu máy. <strong>Nếu đây là lần đầu cài firmware, hãy chọn Nạp toàn phần.</strong></p>
-          <span id="release-tag-full" class="tag">MẶC ĐỊNH · Trọn gói</span>
+          <p id="mode-full-description">Ảnh 16 MB dành cho máy đang dùng 1.4.1 trở xuống, firmware khác hoặc cần cứu máy. Xóa dữ liệu trong máy, giữ thẻ SD.</p>
         </label>
-
-        <label class="radio-card">
-          <input type="radio" name="flash-mode" id="mode-app">
-          <h4>Nâng cấp Ứng dụng</h4>
-          <p>Dành cho máy đã cài dpReader. Cập nhật firmware, giữ nguyên sách, ghi chú và cài đặt Wi-Fi.</p>
-          <span id="release-tag-app" class="tag">Dành cho máy đã cài dpReader</span>
+        <label class="radio-card active">
+          <input type="radio" name="flash-mode" id="mode-app" checked>
+          <h4>Cập nhật ứng dụng</h4>
+          <p id="mode-app-description">Dành cho máy đã dùng dpReader 1.4.2 trở lên với NVS 256 KiB. Giữ cài đặt và dữ liệu.</p>
         </label>
       </div>
 
       <div class="form-group" style="margin-bottom:16px;">
         <label for="release-version">Phiên bản để nạp:</label>
         <select id="release-version">
-          <option value="" selected>1.3.1-vn — mới nhất</option>
-          <option value="1.3.0-vn">1.3.0-vn — bản chính thức trước</option>
-          <option value="1.2.9-vn">1.2.9-vn</option>
+          <option value="" selected>1.4.5-vn — mới nhất</option>
+          <option value="1.4.4-vn">1.4.4-vn — bản chính thức trước</option>
+          <option value="1.4.3-vn">1.4.3-vn</option>
+          <option value="1.4.2-vn">1.4.2-vn</option>
+          <option value="1.4.1-vn">1.4.1-vn</option>
+          <option value="1.3.9-vn">1.3.9-vn — bản chính thức trước</option>
+          <option value="1.3.8-vn">1.3.8-vn</option>
+          <option value="1.3.7-vn">1.3.7-vn</option>
+          <option value="1.3.5-vn">1.3.5-vn</option>
+          <option value="1.3.4-vn">1.3.4-vn</option>
         </select>
-        <p><a id="release-tf-download" href="./releases/dpReader_metalio47_firmware.bin" download>Tải ứng dụng cập nhật qua thẻ TF</a> · <a id="release-usb-download" href="./releases/dpReader_metalio47_full.bin" download>Tải bản đầy đủ cho USB</a></p>
+        <p id="legacy-downloads" hidden><a id="release-tf-download" href="./releases/dpReader_metalio47_firmware.bin" download>Tải ứng dụng cập nhật qua thẻ TF</a> · <a id="release-usb-download" href="./releases/dpReader_metalio47_full.bin" download>Tải bản đầy đủ cho USB</a></p>
       </div>
+
+      <p id="nvs256-download"><a id="release-installer-download" href="./releases/dpReader-metalio47-1.4.5-vn-USB.zip" download>Tải bộ cài USB cho máy tính</a></p>
 
       <!-- Khung thông tin bản phát hành mới nhất tự động đồng bộ -->
       <div id="release-info-banner">
         <div>
           <span>
-            Phiên bản đã chọn: <span id="latest-version-name">v1.3.1-vn</span>
+            Phiên bản đã chọn: <span id="latest-version-name">v1.4.5-vn</span>
           </span>
           <span id="latest-version-size">Đang tải...</span>
         </div>
@@ -105,9 +124,9 @@
         </div>
       </div>
 
-      <div>
+      <div hidden>
         <label class="radio-card">
-          <input type="radio" name="flash-mode" id="mode-custom">
+          <input type="radio" name="flash-mode" id="mode-custom" disabled>
           <h4>Chọn tệp Firmware (.bin) từ máy tính</h4>
           <p>Tự chọn tệp nhị phân có sẵn trên máy của bạn.</p>
         </label>
@@ -130,10 +149,10 @@
         <div class="form-group">
           <label for="baud-rate">Tốc độ nạp (Baud Rate):</label>
           <select id="baud-rate">
-            <option value="460800" selected>460,800 baud (Khuyến nghị cho ESP32-S31)</option>
+            <option value="460800">460,800 baud</option>
             <option value="921600">921,600 baud (Tốc độ cao)</option>
             <option value="230400">230,400 baud (Ổn định khi cáp dài)</option>
-            <option value="115200">115,200 baud (Chậm nhất)</option>
+            <option value="115200" selected>115,200 baud (Khuyến nghị cho ESP32-S31)</option>
           </select>
         </div>
       </div>
@@ -147,7 +166,7 @@
 
       <section class="risk-agreement" aria-labelledby="risk-title">
         <h3 id="risk-title">Xác nhận trước khi nạp</h3>
-        <p>Nạp firmware có thể làm mất thiết lập hoặc dữ liệu, khiến thiết bị không khởi động nếu chọn sai gói hoặc quá trình bị gián đoạn. Hãy sao lưu dữ liệu và giữ kết nối USB ổn định.</p>
+        <p>Nạp firmware có thể làm mất thiết lập hoặc dữ liệu, khiến thiết bị không khởi động nếu chọn sai gói hoặc quá trình bị gián đoạn. Hãy sao lưu cấu hình ra thẻ SD và giữ kết nối USB ổn định.</p>
         <label class="risk-check"><input type="checkbox" id="risk-accepted"><span>Tôi đã đọc, hiểu và tự chịu trách nhiệm về các rủi ro khi nạp firmware vào thiết bị của mình.</span></label>
       </section>
       <p id="flash-readiness" role="status" aria-live="polite">Kết nối thiết bị và tích chấp nhận rủi ro để bắt đầu.</p>
@@ -192,11 +211,32 @@
       </div>
     </div>
 
+    <aside class="community-card" aria-labelledby="community-title">
+      <div class="community-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v11H3V10h4Z"/><path d="M7 10l5-7c.5-.7 1.7-.3 1.7.6V8H19a2 2 0 0 1 2 2.4l-1.4 8A3 3 0 0 1 16.7 21H7"/></svg>
+      </div>
+      <div class="community-copy">
+        <p class="community-eyebrow">MỘT CHÚT ỦNG HỘ, MỘT NIỀM VUI LỚN</p>
+        <h2 id="community-title">Yêu thích dpReader? Ủng hộ Mận Quý nhé!</h2>
+        <p>Nếu yêu thích firmware dpReader, bạn có thể ủng hộ cửa hàng Mận Quý của mình bằng một lượt đánh giá 5 sao trên Google hoặc Thích / Theo dõi fanpage. Cảm ơn bạn rất nhiều!</p>
+      </div>
+      <div class="community-actions">
+        <a class="community-link community-link-google" href="https://www.google.com/maps/place/%C4%90%E1%BA%A1i+L%C3%BD+N%E1%BB%87m+M%E1%BA%ADn+Qu%C3%BD/@11.5612707,108.9894299,17z/data=!4m12!1m2!2m1!1zQ-G7rWEgSMOgbmcgTeG6rW4gUXXDvQ!3m8!1s0x3170d1d49e4b149f:0x44fc5c8a236dff4a!8m2!3d11.5613899!4d108.9920953!9m1!1b1!15sChZD4butYSBIw6BuZyBN4bqtbiBRdcO9WhgiFmPhu61hIGjDoG5nIG3huq1uIHF1w72SAQpxdWlsdF9zaG9w4AEA!16s%2Fg%2F11bv1r9d_n?entry=ttu&amp;g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener noreferrer">
+          <span class="community-stars" aria-hidden="true">★★★★★</span>
+          <span>Đánh giá 5 sao trên Google <span aria-hidden="true">↗</span></span>
+        </a>
+      <a class="community-link" href="https://www.facebook.com/nemmanquy" target="_blank" rel="noopener noreferrer">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 21v-8.2h2.8l.4-3.2h-3.2v-2c0-.9.3-1.6 1.6-1.6h1.7V3.1a22 22 0 0 0-2.5-.1c-2.5 0-4.1 1.5-4.1 4.3v2.3H7.4v3.2h2.8V21h3.3Z"/></svg>
+        <span>Ghé fanpage Mận Quý <span aria-hidden="true">↗</span></span>
+      </a>
+      </div>
+    </aside>
+
     <footer>
       Dự án <a href="https://github.com/dephia31/dpReader31" target="_blank">dpReader31</a> · Firmware Metalio 4.7 Plus (ESP32-S31) · Mã nguồn mở Apache-2.0
     </footer>
   </div>
 
-  <script type="module" src="red-studio-app.js?v=1"></script>
+  <script type="module" src="red-studio-app.js?v=11"></script>
 </body>
 </html>

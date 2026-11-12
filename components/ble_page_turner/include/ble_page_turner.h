@@ -26,7 +26,7 @@
 // 已配对设备上限。/ Maximum bonded peers.
 #define BLE_PT_MAX_BONDS 4
 // 一个外设最多学多少个按键。/ Learned buttons per peripheral.
-#define BLE_PT_MAX_BINDINGS 4
+#define BLE_PT_MAX_BINDINGS 6
 // 一帧报告的最大字节数。报告一般 8-9 字节，16 足够覆盖带报告号的复合设备。
 // Maximum report frame size. Reports are typically 8-9 bytes; 16 covers composite devices that
 // prefix a report id.
@@ -72,7 +72,7 @@ typedef struct {
     bool bonded;        ///< 已在已配对列表里 / already in the bond list
 } ble_pt_device_t;
 
-/// 已配对（bonded）的设备，持久化在 NVS。/ A bonded peer, persisted in NVS.
+/// 已配对设备，S31配置保存到SD。/ A saved peer; S31 profiles persist on SD.
 typedef struct {
     char addr[18];
     char name[32];
@@ -99,12 +99,23 @@ typedef struct {
     uint32_t at_ms;        ///< 帧到达时刻 / frame arrival time
 } ble_pt_raw_t;
 
-/// 手动映射的动作。只做翻页，所以只有两个。
-/// Manual-binding actions. Page turning only, hence just two.
+/// 可学习的阅读动作。/ Learnable reader actions.
 typedef enum {
     BLE_PT_ACTION_NONE = 0,
     BLE_PT_ACTION_PREV,
     BLE_PT_ACTION_NEXT,
+    BLE_PT_ACTION_PREV_CHAPTER,
+    BLE_PT_ACTION_NEXT_CHAPTER,
+    BLE_PT_ACTION_TOOLS,
+    BLE_PT_ACTION_HOME,
+    BLE_PT_ACTION_LIGHT_OFF,
+    BLE_PT_ACTION_LIGHT_ON,
+    BLE_PT_ACTION_LIGHT_TOGGLE,
+    BLE_PT_ACTION_REFRESH,
+    BLE_PT_ACTION_QUICK_MENU,
+    BLE_PT_ACTION_KOSYNC,
+    BLE_PT_ACTION_LOCK,
+    BLE_PT_ACTION_COUNT,
 } ble_pt_action_t;
 
 /* ---- 生命周期 / Lifecycle ---- */
@@ -141,13 +152,16 @@ void ble_pt_reset_failure(void);
 /// than disconnect() when the user turns Bluetooth off, so memory-hungry work such as EPUB
 /// inflate can allocate again. Waits at most timeout_ms (capped at 2s).
 esp_err_t ble_pt_stop(uint32_t timeout_ms);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// S31睡眠前关闭无线，醒后恢复目标；不改用户开关。/ Suspend radios while preserving user settings.
 esp_err_t ble_pt_suspend_for_sleep(void);
 void ble_pt_resume_after_sleep(void);
 #else
 #endif
 bool ble_pt_running(void);
+
+/// SDK đã báo lỗi khi dừng và tài nguyên BLE còn được giữ để tránh khởi động lại sai trạng thái.
+bool ble_pt_stop_failed(void);
 /// WiFi 分配前释放蓝牙并禁止重启，结束后释放占用；失败不允许继续分配网络。
 /// Stop BLE before WiFi allocations and inhibit restarts until released; abort networking on failure.
 esp_err_t ble_pt_network_acquire(void);
@@ -220,7 +234,7 @@ bool ble_pt_take_passkey(uint32_t *out);
 
 uint8_t ble_pt_bond_count(void);
 const ble_pt_bond_t *ble_pt_bond(uint8_t index);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 esp_err_t ble_pt_forget(const char *addr);
 #else
 void ble_pt_forget(const char *addr);
@@ -243,6 +257,9 @@ bool ble_pt_pop_key(ble_pt_event_t *out);
 /// next press of the same key counts again.
 bool ble_pt_pop_raw(ble_pt_raw_t *out);
 
+/// Xóa các sự kiện đầu vào đang chờ mà không thay đổi kết nối hay ánh xạ nút.
+void ble_pt_discard_input(void);
+
 /* ---- 手动映射 / Manual bindings ---- */
 
 /// 学习开始：把此刻那一帧（用户没按键时外设发的静止帧）当基准。
@@ -254,14 +271,10 @@ bool ble_pt_pop_raw(ble_pt_raw_t *out);
 /// learning screen calls this once before asking the user to press.
 void ble_pt_learn_begin(void);
 
-/// 把一个学到的整帧绑到动作上；len 为 0 表示清除该动作的绑定。
-/// 绑定按外设地址分别保存。/ Bind a learned frame to an action; a zero-length frame clears it.
-/// Bindings are stored per peripheral address.
-esp_err_t ble_pt_bind(ble_pt_action_t action, const ble_pt_frame_t *frame);
-
-/// 读回某个动作绑定的整帧；未绑定时返回 false，且不写 out。
-/// Read back an action's bound frame; false when unbound, leaving out untouched.
-bool ble_pt_binding(ble_pt_action_t action, ble_pt_frame_t *out);
+/// 绑定指定槽；空帧清除。/ Save a slot for this peer; an empty frame clears it.
+esp_err_t ble_pt_bind_slot(unsigned slot, ble_pt_action_t action, const ble_pt_frame_t *frame);
+bool ble_pt_binding_slot(unsigned slot, ble_pt_action_t *action, ble_pt_frame_t *out);
+bool ble_pt_has_bindings(void);
 
 /// 把一帧折算成动作。手动绑定优先，其次是内置映射。
 /// 内置映射含阅星瞳协议：整帧就是 0x01 上一页、0x02 下一页；声明了键盘页的外设上 byte 0 是

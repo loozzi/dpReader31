@@ -9,7 +9,8 @@
  * 用户修订：票根从任意页面进入均用系统字体；浅睡唤醒恢复此前阅读字体，深睡由启动检查点恢复。
  * User revision: tickets use the system face from every page; light wake restores the previous reader face, while deep wake uses the startup checkpoint.
  * 用户修订：单击锁屏提示复用Pico布局；双击/PIN和S31外设休眠顺序保持。
- * User revision: use Pico's single-click hint layout, retaining double-click/PIN and S31 peripheral sleep sequencing.
+ * User revision: use Pico's single-click hint layout and retain S31 sleep sequencing.
+ * 用户修订：Love Book仅休眠和按键唤醒，取消密码验证。/ Love Book sleeps and wakes via the power key without PIN authentication.
  * 用户2026-10-31修订：锁屏浅睡；0小时不关机，其余1..24小时后关机；定时维护不重启外设，真实唤醒后输入恢复失败重试。
  * User revision 2026-10-31: manual/idle locks light-sleep immediately; 0 hours means sleep only, otherwise selected1..24 hours then off. Timer slices retain parked peripherals to avoid the reported resume power-glitch loop; retry failed input restoration after actual wake.
  */
@@ -109,8 +110,10 @@ static esp_err_t lock_resume_media_io(uint32_t wait_ms) {
 static void lock_resume_io_service(void) {
     metalio_sleep_report_reset();
     if (s_lock_io_pending && esp_timer_get_time() >= s_lock_io_retry_us) {
-        s_lock_io_retry_us = esp_timer_get_time() + INT64_C(1000000);
-        (void)lock_resume_media_io(0);
+        esp_err_t err = lock_resume_media_io(0);
+        // Recheck a mount in progress promptly; keep backoff for actual I/O errors.
+        s_lock_io_retry_us = esp_timer_get_time() +
+            (err == ESP_ERR_NOT_FINISHED ? INT64_C(20000) : INT64_C(1000000));
     }
 }
 bool app_sleep_media_ready(void) {
@@ -465,7 +468,7 @@ static bool lock_prepare_key_wake(void) {
     for(unsigned tries=0;err==ESP_OK && tries<30;tries++) {
         uint16_t inputs;
         err=metalio_io_read(&inputs);
-        if(err==ESP_OK && (inputs&(1u<<15)) && read_pico_ioe_int_level()!=0) { idle=true; break; }
+        if(err==ESP_OK && (inputs&0x8300u)==0x8300u && read_pico_ioe_int_level()!=0) { idle=true; break; }
         vTaskDelay(pdMS_TO_TICKS(20));
     }
     if(idle) {
@@ -480,6 +483,8 @@ static bool lock_prepare_key_wake(void) {
 
 // 中文：按官方 power_hw 的顺序执行；保留PSRAM/排版/字体缓存，定时唤醒不解锁或点灯。
 // English: Follow vendor power_hw ordering; timer wakes retain RAM/layout/font caches and never unlock/light.
+// Keep P14/VOUT on in Light Sleep to avoid the wake edge implicated by phase-15 resets.
+// The explicit Deep Sleep path still switches both rails.
 // 维护切片不跨越用户设定小时交接点；定时到达只恢复外设，不作为解锁动作。
 // Maintenance slices cannot overrun the ten-minute handoff; a deadline restores peripherals, never unlocks.
 static uint64_t lock_light_sleep_slice_us(int64_t wake_by) {
@@ -531,14 +536,14 @@ static esp_err_t lock_light_sleep_once(sc7a20h_handle_t acc,cst836u_handle_t tou
     if(err==ESP_OK) err=esp_sleep_enable_timer_wakeup(lock_light_sleep_slice_us(wake_by));
     if(err==ESP_OK && metalio_usb_blocks_sleep()) err=ESP_ERR_INVALID_STATE;
     if(err==ESP_OK) {
-        rails_cut=true; err=metalio_sleep_cut_rails(&saved_rails);
+        rails_cut=true; err=metalio_sleep_cut_rails(&saved_rails, false);
     }
     if(err==ESP_OK) {
         err=metalio_hold_for_light_sleep();
     }
     if(err==ESP_OK) {
         metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_BEFORE_SLEEP);
-        ESP_LOGI(TAG,"S31 light sleep: slice<=60s; handles paused, RAM/font/index retained");
+        ESP_LOGI(TAG,"S31 light sleep: slice<=60s; VOUT retained, handles paused, RAM/font/index retained");
         unsigned maintenance=0;
         for(;;) {
             if(wake_by && esp_timer_get_time()>=wake_by) break;
@@ -570,7 +575,7 @@ static esp_err_t lock_light_sleep_once(sc7a20h_handle_t acc,cst836u_handle_t tou
     (void)esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
     if(rails_cut) {
         metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_RAILS);
-        esp_err_t restore=metalio_sleep_restore_rails(saved_rails);
+        esp_err_t restore=metalio_sleep_restore_rails(saved_rails, false);
         if(err==ESP_OK) err=restore;
         metalio_frontlight(0,50);
     }
@@ -653,10 +658,14 @@ esp_err_t app_enter_host_sleep(app_sleep_mode_t mode) {
     if (!(book_cover_jobs_quiesce(2000) && ui_avatar_quiesce(2000))) return ESP_ERR_NOT_FINISHED;
     if (mode != APP_SLEEP_OFF && mode != APP_SLEEP_DEEP) return ESP_ERR_INVALID_ARG;
     if (mode == APP_SLEEP_DEEP && metalio_usb_blocks_sleep()) return ESP_ERR_INVALID_STATE;
-    if (pico_online_busy() || !read_pico_transfer_pause_for_sleep()) return ESP_ERR_NOT_FINISHED;
     // 锁屏调用方已经持有无线暂停；失败时不能擅自恢复其会话。
     // An active lock owns the radio pause; failed deep admission must not release that ownership.
     bool restore_radios=s_lock_sleep_touch==NULL;
+    if (pico_online_busy()) return ESP_ERR_NOT_FINISHED;
+    if (!read_pico_transfer_pause_for_sleep()) {
+        if (restore_radios) read_pico_transfer_resume_after_sleep();
+        return ESP_ERR_NOT_FINISHED;
+    }
     esp_err_t err = ble_pt_suspend_for_sleep();
     if (err != ESP_OK) { if(restore_radios) { ble_pt_resume_after_sleep(); read_pico_transfer_resume_after_sleep(); } return err; }
     if(mode==APP_SLEEP_OFF) {
@@ -702,13 +711,13 @@ esp_err_t app_enter_host_sleep(app_sleep_mode_t mode) {
         epd_lcd_deinit();
         if(err==ESP_OK) { pins_prepared=true;err=metalio_prepare_light_sleep_pins(); }
         if(err==ESP_OK && (metalio_usb_blocks_sleep() || read_pico_ioe_int_level()==0)) err=ESP_ERR_INVALID_STATE;
-        if(err==ESP_OK) { rails_cut=true;err=metalio_sleep_cut_rails(&saved_rails); }
+        if(err==ESP_OK) { rails_cut=true;err=metalio_sleep_cut_rails(&saved_rails, true); }
         if(err==ESP_OK) {
             metalio_hold_for_deep_sleep();
             esp_deep_sleep_start();
         }
         if(pins_prepared) metalio_release_light_sleep_pins();
-        if(rails_cut) (void)metalio_sleep_restore_rails(saved_rails);
+        if(rails_cut) (void)metalio_sleep_restore_rails(saved_rails, true);
         metalio_frontlight(0,50);
         lock_restore_key_wake();
         (void)read_pico_sd_remount();
@@ -778,7 +787,10 @@ esp_err_t app_enter_download(void) {
         return retry;
     }
     if (!(book_cover_jobs_quiesce(2000) && ui_avatar_quiesce(2000))) return ESP_ERR_NOT_FINISHED;
-    if (!read_pico_transfer_pause_for_sleep()) return ESP_ERR_NOT_FINISHED;
+    if (!read_pico_transfer_pause_for_sleep()) {
+        read_pico_transfer_resume_after_sleep();
+        return ESP_ERR_NOT_FINISHED;
+    }
     esp_err_t err=ble_pt_suspend_for_sleep();
     if (err!=ESP_OK) { ble_pt_resume_after_sleep(); read_pico_transfer_resume_after_sleep(); return err; }
     download_trace("before_prepare",true);
@@ -807,6 +819,7 @@ static void lock_wait_for_unlock(sc7a20h_handle_t acc) {
     while(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_TIMEOUT)vTaskDelay(pdMS_TO_TICKS(100));
 }
 
+#if !DPREADER_LOVE_BOOK
 bool lock_pin_grace_active(void) {
     if(!lock_pin_enabled() || !lock_pin_available() || !app_settings_pin_grace_minutes())return false;
     const time_t now=time(NULL);
@@ -815,9 +828,10 @@ bool lock_pin_grace_active(void) {
     return (uint64_t)now-locked_at<(uint64_t)app_settings_pin_grace_minutes()*60u;
 }
 
+#endif
 void enter_lock_and_sleep(
     EpdiyHighlevelState* hl, int64_t* ignore_until_ms, sc7a20h_handle_t acc, cst836u_handle_t touch,
-    bool reader_background
+    bool auto_lock
 ) {
     if(pico_online_busy()) {
         s_lock_feedback_started=false;
@@ -871,7 +885,7 @@ void enter_lock_and_sleep(
     // 阅读票根独占锁屏画布：始终先画最近书籍封面，再叠票根；自定义壁纸只属于壁纸模式。
     // Ticket mode owns the lock canvas: book cover first, ticket on top. Custom wallpaper is wallpaper-only.
     bool lock_drawn = ticket
-        ? book_ticket_draw(framebuffer, reader_background)
+        ? book_ticket_draw(framebuffer, auto_lock)
         : lock_style == 2 ? book_lock_collage_prepare(framebuffer) :
           lock_style == 3 ? book_lock_bookmark_draw(framebuffer,app_settings_bookmark_path()) : draw_wallpaper(framebuffer);
     if (!lock_drawn) {
@@ -911,12 +925,15 @@ void enter_lock_and_sleep(
     epd_poweroff();
     s_lock_sleep_touch=touch;
     lock_hint_begin(hl);
+#if !DPREADER_LOVE_BOOK
     if(lock_pin_enabled()) {
         time_t now=time(NULL);
         app_settings_record_pin_lock(now>=1704067200 && now<=4102444799LL?(uint32_t)now:0);
         lock_screen_authenticate(hl,touch,acc,false);
     }
-    else lock_wait_for_unlock(acc);
+    else
+#endif
+        lock_wait_for_unlock(acc);
     lock_hint_end();
     s_lock_sleep_touch=NULL;
     s_lock_deep_ready=false;s_lock_frame_cached=false;
@@ -954,9 +971,11 @@ void app_lock_boot_gate(EpdiyHighlevelState *hl, cst836u_handle_t touch, sc7a20h
         }
         lock_hint_end();
         (void)app_lock_resume_frame(NULL);
+        read_pico_transfer_resume_after_sleep();
         ble_pt_resume_after_sleep();
         return;
     }
+#if !DPREADER_LOVE_BOOK
     // 卡挂载有界等待仅为了字体/锁屏图；没有卡仍必须验证。
     // Bound mount waiting for the face/art only; absent media still requires authentication.
     read_pico_sd_info_t info;
@@ -978,5 +997,8 @@ void app_lock_boot_gate(EpdiyHighlevelState *hl, cst836u_handle_t touch, sc7a20h
     lock_hint_end();
     (void)app_lock_resume_frame(NULL);
     app_font_end_lock(&saved);
+    read_pico_transfer_resume_after_sleep();
     ble_pt_resume_after_sleep();
+#endif
+
 }
