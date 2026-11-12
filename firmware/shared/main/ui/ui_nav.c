@@ -212,14 +212,24 @@ static void icon(uint8_t *fb, int tab, int cx, int y) {
     ui_draw_icon(fb, cx, y + 18, UI_NAV_TAB_ICON_PX, tabs[tab], UI_GRAY_BLACK);
 }
 
+#if DPREADER_BOARD_METALIO47
+// 中文：预补偿装饰灰阶，避免130%默认文字对比度把浅灰胶囊裁成白色；文字与图标仍使用用户对比度。
+// English: Precompensate material tones so default 130% text contrast cannot clip light pills to white; text/icons retain user contrast.
+static uint8_t nav_material_ink(uint8_t gray) {
+    const int contrast=app_settings_system_contrast();
+    const int target=(gray&0xf0)+8;
+    return (uint8_t)(128+((target-128)*100+contrast/2)/contrast);
+}
+#endif
+
 void ui_nav_draw(uint8_t *fb, int active) {
 #if DPREADER_BOARD_METALIO47
-    // 导航后面固定留白，无需模糊白色像素或分配工作区；使用A方案的浅灰玻璃色阶。
-    // Navigation has a reserved white backing: use A's light glass tones without blurring white pixels or allocating a workspace.
+    // 导航后面固定留白，无需模糊白色像素或分配工作区；使用加深后的玻璃灰阶。
+    // Navigation has a reserved white backing: use visibly gray glass tones without blurring white pixels or allocating a workspace.
     ui_fill_rect_fast((EpdRect){0,UI_NAV_REFRESH_END,UI_LOCK_WIDTH,UI_LOCK_HEIGHT-UI_NAV_REFRESH_END},UI_GRAY_WHITE,fb);
     const EpdRect capsule={12,UI_NAV_TOP+8,UI_LOCK_WIDTH-24,96};
-    ui_fill_round_rect(fb,(EpdRect){capsule.x,capsule.y+3,capsule.width,capsule.height},48,0xdd);
-    ui_fill_round_rect(fb,capsule,48,0xee);
+    ui_fill_round_rect(fb,(EpdRect){capsule.x,capsule.y+3,capsule.width,capsule.height},48,nav_material_ink(0x88));
+    ui_fill_round_rect(fb,capsule,48,nav_material_ink(0xcc));
     ui_draw_round_rect(fb,(EpdRect){capsule.x+1,capsule.y+1,capsule.width-2,capsule.height-2},47,UI_GRAY_WHITE);
     const int count=app_settings_simple_ui()?2:4;
     for(int slot=0;slot<count;++slot) {
@@ -227,7 +237,7 @@ void ui_nav_draw(uint8_t *fb, int active) {
         const int center=(slot*2+1)*UI_LOCK_WIDTH/(count*2);
         if(i==active) {
             const EpdRect selected={center-70,UI_NAV_TOP+16,140,80};
-            ui_fill_round_rect(fb,selected,40,0xdd);
+            ui_fill_round_rect(fb,selected,40,nav_material_ink(0x99));
             ui_draw_round_rect(fb,(EpdRect){selected.x+1,selected.y+1,selected.width-2,selected.height-2},39,UI_GRAY_WHITE);
         }
         icon(fb,i,center,UI_NAV_TOP+27);

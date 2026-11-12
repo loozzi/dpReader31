@@ -2,6 +2,8 @@
 
 - Thanh điều hướng dưới cùng chuyển sang capsule nổi màu kính mờ, với nền riêng cho mục đang chọn; giữ nguyên bốn mục và vùng chạm, hỗ trợ giao diện hai mục.
 - Cập nhật nền chọn bằng refresh xám cục bộ; phản hồi nhấn lấy lại nền mới sau khi chuyển trang.
+- Giữ màu xám của thanh nổi ở mọi mức tương phản giao diện 100–140%, sửa nền thanh và mục chọn bị trắng ở mức mặc định 130%.
+- Tăng độ đậm của nền thanh, nút đang chọn và bóng đổ để dễ phân biệt trên màn hình e-ink.
 
 
 ## dpReader 1.4.5-vn / 1.4.5-love-vn · 2026-11-12

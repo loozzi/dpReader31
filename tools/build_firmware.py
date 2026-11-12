@@ -61,18 +61,37 @@ def write_usb_launcher(output):
     batch = r'''@echo off
 setlocal
 cd /d "%~dp0"
+if exist ".usb-python\Scripts\python.exe" (
+  ".usb-python\Scripts\python.exe" -c "import esptool, serial; assert tuple(int(x) for x in esptool.__version__.split('.')[:2]) >= (5, 6)" >nul 2>nul
+  if not errorlevel 1 (
+    ".usb-python\Scripts\python.exe" flash_usb.py %*
+    goto flash_done
+  )
+)
 where py >nul 2>nul
 if not errorlevel 1 (
-  py -3 flash_usb.py %*
-) else (
-  where python >nul 2>nul
-  if errorlevel 1 (
-    echo Install Python 3 from python.org, then retry.
-    pause
-    exit /b 1
+  for %%V in (3.12 3.13 3.11 3.14) do (
+    py -%%V -c "import esptool, serial; assert tuple(int(x) for x in esptool.__version__.split('.')[:2]) >= (5, 6)" >nul 2>nul
+    if not errorlevel 1 (
+      py -%%V flash_usb.py %*
+      goto flash_done
+    )
   )
-  python flash_usb.py %*
 )
+where python >nul 2>nul
+if not errorlevel 1 (
+  python -c "import sys, esptool, serial; assert sys.version_info[:2] < (3, 15); assert tuple(int(x) for x in esptool.__version__.split('.')[:2]) >= (5, 6)" >nul 2>nul
+  if not errorlevel 1 (
+    python flash_usb.py %*
+    goto flash_done
+  )
+)
+echo Install Python 3.12 from python.org, then run in this folder:
+echo py -3.12 -m venv .usb-python
+echo .usb-python\Scripts\python.exe -m pip install "esptool==5.6.0"
+pause
+exit /b 1
+:flash_done
 set "FLASH_RESULT=%ERRORLEVEL%"
 echo.
 if not "%FLASH_RESULT%"=="0" echo USB flash failed. Read the error above.
@@ -294,6 +313,14 @@ def export(build, output, board, edition="full", sdk=None, python=None):
             "Python cần esptool >= 5.6 và pyserial. Cài sạch từ bố cục cũ bằng USB.\n"
             "Launcher tự cài sạch từ bố cục cũ, xóa cài đặt và tệp trong /flash. Thẻ SD giữ nguyên.\n"
             "USB trên bố cục mới chỉ ghi app và vùng chọn boot.\n")
+        if 'RC' in identity['version']:
+            instructions = (
+                f"dpReader {identity['version']} — NVS256 local RC\n"
+                "Chạy FLASH_USB.command (macOS) hoặc FLASH_USB.bat (Windows).\n"
+                "Yêu cầu layout NVS256 đang dùng ở firmware1.4.2 trở lên.\n"
+                "Chỉ ghi app và vùng chọn boot; giữ bootloader,NVS,sách và dữ liệu.\n"
+                "Layout cũ hoặc trống bị từ chối; không tự cài sạch/chuyển dữ liệu.\n"
+                "Windows ưu tiên .usb-python/Python3.12 với esptool>=5.6 và pyserial.\n")
         (output / 'HUONG_DAN_FLASH.txt').write_text(instructions)
         (output / 'BUILD_NOTES.txt').write_text(instructions)
         result.pop('full_bin', None)

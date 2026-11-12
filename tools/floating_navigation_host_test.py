@@ -36,6 +36,9 @@ typedef struct {int x,y,width,height;} EpdRect;
 typedef enum {UI_CLICK_NAV,UI_CLICK_BACK,UI_CLICK_BACK_SMALL} ui_click_kind_t;
 static bool simple,oom;
 static int live,texts;
+static uint8_t contrast=130;
+static uint8_t app_settings_system_contrast(void){return contrast;}
+uint8_t ui_contrast_gray(uint8_t gray);
 static uint8_t frame[684*1216],baseline[684*1216];
 static bool app_settings_simple_ui(void){return simple;}
 static bool app_settings_main_fast_refresh(void){return false;}
@@ -45,7 +48,7 @@ static int epd_height(void){return 1216;}
 static int epd_rotated_display_width(void){return 684;}
 static int epd_rotated_display_height(void){return 1216;}
 static uint8_t epd_get_pixel(int x,int y,int w,int h,const uint8_t *fb){assert(w==684&&h==1216);return fb[y*w+x];}
-static void epd_draw_pixel(int x,int y,uint8_t g,uint8_t *fb){assert(x>=0&&x<684&&y>=0&&y<1216);fb[y*684+x]=g;}
+static void epd_draw_pixel(int x,int y,uint8_t g,uint8_t *fb){assert(x>=0&&x<684&&y>=0&&y<1216);fb[y*684+x]=(g>>4)*17;}
 static void epd_fill_rect(EpdRect r,uint8_t g,uint8_t *fb){for(int y=0;y<r.height;y++)for(int x=0;x<r.width;x++)epd_draw_pixel(r.x+x,r.y+y,g,fb);}
 static void ui_fill_rect_fast(EpdRect r,uint8_t g,uint8_t *fb){epd_fill_rect(r,g,fb);}
 static bool inside(EpdRect r,int radius,int x,int y){
@@ -54,9 +57,11 @@ static bool inside(EpdRect r,int radius,int x,int y){
  return dx*dx+dy*dy<=radius*radius;
 }
 static void ui_fill_round_rect(uint8_t *fb,EpdRect r,int radius,uint8_t g){
+ g=ui_contrast_gray(g);
  for(int y=r.y;y<r.y+r.height;y++)for(int x=r.x;x<r.x+r.width;x++)if(inside(r,radius,x,y))epd_draw_pixel(x,y,g,fb);
 }
 static void ui_draw_round_rect(uint8_t *fb,EpdRect r,int radius,uint8_t g){
+ g=ui_contrast_gray(g);
  EpdRect inner={r.x+1,r.y+1,r.width-2,r.height-2};
  for(int y=r.y;y<r.y+r.height;y++)for(int x=r.x;x<r.x+r.width;x++)if(inside(r,radius,x,y)&&(!inside(inner,radius-1,x,y)||x==r.x||y==r.y||x==r.x+r.width-1||y==r.y+r.height-1))epd_draw_pixel(x,y,g,fb);
 }
@@ -71,6 +76,7 @@ static int ui_nav_hit(uint16_t x,uint16_t y);
 
 CASES = r'''
 int main(void){
+ for(contrast=100;contrast<=140;contrast+=10){
  for(simple=false;;simple=true){
   for(int tab=0;tab<4;tab++){
    if(simple&&tab!=0&&tab!=3)continue;
@@ -79,10 +85,11 @@ int main(void){
    for(int y=0;y<UI_NAV_REFRESH_END;y++)for(int x=0;x<684;x++)assert(frame[y*684+x]==0x33);
    for(int y=UI_NAV_REFRESH_END;y<UI_NAV_TOP+8;y++)for(int x=0;x<684;x++)assert(frame[y*684+x]==255);
    for(int y=UI_NAV_REFRESH_END;y<1216;y++)assert(frame[y*684]==255&&frame[y*684+683]==255);
+   assert(frame[1201*684+342]==0x88);
    int slots=simple?2:4;
    for(int i=0;i<slots;i++){
     int id=simple?(i?3:0):i,cx=(2*i+1)*684/(2*slots);
-    assert(frame[(UI_NAV_TOP+87)*684+cx]==(id==tab?0xdd:0xee));
+    assert(frame[(UI_NAV_TOP+87)*684+cx]==(id==tab?0x99:0xcc));
     assert(ui_nav_hit(cx,UI_NAV_TOUCH_TOP)==id);
    }
    memcpy(baseline,frame,sizeof(frame));EpdRect dirty;
@@ -93,6 +100,8 @@ int main(void){
   }
   if(simple)break;
  }
+ }
+ contrast=130;
  simple=false;
  assert(ui_nav_hit(684,1140)==-1&&ui_nav_hit(100,UI_NAV_TOUCH_TOP-1)==-1);
  for(int old=0;old<4;old++)for(int next=0;next<4;next++){
@@ -105,7 +114,7 @@ int main(void){
  ui_click_feedback_nav_request(0);oom=true;EpdRect dirty;
  (void)ui_click_feedback_nav_tick(frame,200,&dirty);assert(!live&&!ui_click_feedback_nav_pending());
  ui_click_feedback_reset();
- puts("PASS: actual floating navigation bounds, white guard, all 4/2-tab selections and hit regions; exact press restoration; 16 cross-page feedback baselines; OOM cleanup");
+ puts("PASS: actual contrast mapping at100/110/120/130/140%, floating material tones, white guard, all4/2-tab selections/hits; exact press restoration;16 cross-page feedback baselines;OOM cleanup");
 }
 '''
 
@@ -119,8 +128,8 @@ int main(void){
   reset();main_mode=mode;
   // 中文：模拟选中胶囊与图标的真实灰阶迁移。/ English: Simulate real gray transitions in selected pills and icon wells.
   for(int row=0;row<H;row++)for(int x=UI_NAV_REFRESH_END/2;x<W/2;x++){
-   back[row*W/2+x]=panel[row*W/2+x]=((row/(H/4))==old)?0xdd:0xee;
-   front[row*W/2+x]=((row/(H/4))==next)?0xdd:0xee;
+   back[row*W/2+x]=panel[row*W/2+x]=((row/(H/4))==old)?0x99:0xcc;
+   front[row*W/2+x]=((row/(H/4))==next)?0x99:0xcc;
   }
   memcpy(final,front,BYTES);display_main_transition_arm(&owner_a,false,true);
   assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);
@@ -134,7 +143,7 @@ int main(void){
  }
  for(int mode=0;mode<3;mode++)for(int fail=0;fail<3;fail++){
   reset();main_mode=mode;target(3);
-  for(int row=0;row<H;row++)for(int x=UI_NAV_REFRESH_END/2;x<W/2;x++)front[row*W/2+x]=0xdd;
+  for(int row=0;row<H;row++)for(int x=UI_NAV_REFRESH_END/2;x<W/2;x++)front[row*W/2+x]=0x99;
   memcpy(final,front,BYTES);failures=fail?1:0;fail_after=fail==2?1:0;fail_error=EPD_DRAW_EMPTY_LINE_QUEUE;
   display_main_transition_arm(&owner_a,false,true);
   assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);
@@ -146,7 +155,7 @@ int main(void){
   reset();main_mode=mode;alloc_fail=low;target(2);
   for(int row=0;row<H;row++){
    for(unsigned b=0;b<3;b++)for(int x=acrylic[b].y/2;x<(acrylic[b].y+acrylic[b].height)/2;x++)front[row*W/2+x]=(uint8_t)(row%256);
-   for(int x=UI_NAV_REFRESH_END/2;x<W/2;x++)front[row*W/2+x]=0xdd;
+   for(int x=UI_NAV_REFRESH_END/2;x<W/2;x++)front[row*W/2+x]=0x99;
   }
   memcpy(final,front,BYTES);display_main_transition_arm(&owner_a,false,true);
   display_main_transition_gray_bands(acrylic,3);
@@ -156,7 +165,7 @@ int main(void){
  reset();main_mode=APP_MAIN_REFRESH_FAST;
  for(int turn=0;turn<8;turn++){
   now_us+=4000000;target(turn);
-  for(int row=0;row<H;row++)for(int x=UI_NAV_REFRESH_END/2;x<W/2;x++)front[row*W/2+x]=(turn&1)?0xdd:0xee;
+  for(int row=0;row<H;row++)for(int x=UI_NAV_REFRESH_END/2;x<W/2;x++)front[row*W/2+x]=(turn&1)?0x99:0xcc;
   memcpy(final,front,BYTES);display_main_transition_arm(&owner_a,false,true);
   assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();
  }
@@ -178,7 +187,7 @@ def run(tmp, name, source, more=()):
 with tempfile.TemporaryDirectory() as folder:
     tmp = Path(folder)
     feedback = re.sub(r'^#include[^\n]*\n', '', (ROOT/'main/ui/ui_click_feedback.c').read_text(), flags=re.M)
-    draw = DRAW+feedback+'\n'+function('ui_nav_hit', ROOT/'main/ui/ui_nav.c')+'\n'+function('icon', ROOT/'main/ui/ui_nav.c')+'\n'+function('ui_nav_draw', ROOT/'main/ui/ui_nav.c')+CASES
+    draw = DRAW+feedback+'\n'+function('ui_contrast_gray', ROOT/'main/ui/ui_kit.c')+'\n'+function('ui_nav_hit', ROOT/'main/ui/ui_nav.c')+'\n'+function('icon', ROOT/'main/ui/ui_nav.c')+'\n'+function('nav_material_ink', ROOT/'main/ui/ui_nav.c')+'\n'+function('ui_nav_draw', ROOT/'main/ui/ui_nav.c')+CASES
     run(tmp, 'floating-draw', draw)
     harness = (ROOT/'tools/display_navigation_host_test.c').read_text().split('int main(void)')[0]
     # 中文：原区域替身的横条扩展范围改为内容截止线；其余波形及内存断言保留。/ English: Region shim now stops at the body boundary rather than extending through the obsolete marker; retain waveform/memory assertions.

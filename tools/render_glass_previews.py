@@ -151,14 +151,14 @@ def floating_navigation(exe, active=0, page=None):
     img = base() if page is None else page.copy()
     d = ImageDraw.Draw(img)
     d.rectangle((0, 1088, W-1, H-1), fill=255)
-    d.rounded_rectangle((12, 1107, 671, 1202), 48, fill=221)
-    d.rounded_rectangle((12, 1104, 671, 1199), 48, fill=238)
+    d.rounded_rectangle((12, 1107, 671, 1202), 48, fill=136)
+    d.rounded_rectangle((12, 1104, 671, 1199), 48, fill=204)
     d.rounded_rectangle((13, 1105, 670, 1198), 47, outline=255)
     # 中文：用户参考图中的一体悬浮胶囊及独立选中底。/ English: Shared floating capsule and selected pill from the user's reference.
     for i, (name, label) in enumerate([('HOUSE', 'Trang chủ'), ('LIBRARY_BIG', 'Kệ sách'), ('FOLDER_OPEN', 'Tệp tin'), ('SLIDERS_HORIZONTAL', 'Cài đặt')]):
         x = (2*i+1)*W//8
         if i == active:
-            d.rounded_rectangle((x-70, 1112, x+69, 1191), 40, fill=221)
+            d.rounded_rectangle((x-70, 1112, x+69, 1191), 40, fill=153)
             d.rounded_rectangle((x-69, 1113, x+68, 1190), 39, outline=255)
         icon(img, name, x, 1141, 44)
         text(img, (x, 1170), label, 17, anchor='mt')
