@@ -34,6 +34,7 @@
  * User revision: Kehai seconds hold unchanged face pixels to avoid rectangular gray-background flashes; fast mode drives binary dot differences only.
  * 用户修订：首页题头与书架、文件和设置共用左侧起点、顶边及52px名义字号，仍使用当前系统字体。
  * User revision: Home's title matches the shelf/files/settings left edge, top and nominal 52px size in the active system face.
+ * User revision2026-11-13: Full Home follows the flat gray reference, with a compact live date and unframed covers; retain simple/Love layouts.
  */
 #include <dirent.h>
 #include <stdio.h>
@@ -652,6 +653,9 @@ static void draw_cover(uint8_t *fb,const home_book_t *item,EpdRect bounds) {
             epd_draw_pixel(box.x+x,box.y+y,g,fb);
         }
     } else ui_fill_round_rect(fb,box,12,0xe0);
+#if !DPREADER_LOVE_BOOK
+    if(s_view==HOME_ROOT&&!app_settings_simple_ui())return;
+#endif
     home_frame(fb,box,12);
 }
 // 双线性采样完整封面；坐标为0..65535，不新增位图缓存。

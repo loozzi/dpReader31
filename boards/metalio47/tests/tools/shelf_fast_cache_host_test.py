@@ -127,29 +127,29 @@ int main(void) {
     assert(allocations==before && allocated_bytes==40446);
     // 原灰阶已经释放，修改对比度/位置的真实准备流程会重新提供解码缓冲。
     // Gray has been released; re-preparation supplies decoding buffers for changed contrast/position.
-    contrast=200;for(int i=0;i<9;++i)seed_gray(i);prepare_fast_covers();assert(allocations==before+9);
+    contrast=200;for(int i=0;i<9;++i){seed_gray(i);}prepare_fast_covers();assert(allocations==before+9);
     for(int row=0;row<9;++row){verify_bitmap(row);assert(!s_covers[row].gray);}
-    phase_shift=1;before=allocations;for(int i=0;i<9;++i)seed_gray(i);prepare_fast_covers();assert(allocations==before+9);
+    phase_shift=1;before=allocations;for(int i=0;i<9;++i){seed_gray(i);}prepare_fast_covers();assert(allocations==before+9);
     for(int row=0;row<9;++row)verify_bitmap(row);
     // 有效黑白不会因内存减少被丢弃；灰阶释放后仍保持同一份热缓存。
     // Memory pressure does not evict already valid packed artwork.
     free_psram=1;prepare_fast_covers();assert(allocated_bytes==40446);
     app_book_cover_mode_changed();assert(!allocated_bytes);
-    for(int i=0;i<9;++i)seed_gray(i);prepare_fast_covers();
+    for(int i=0;i<9;++i){seed_gray(i);}prepare_fast_covers();
     for(int row=0;row<13;++row)assert(!s_covers[row].fast_bits && !s_covers[row].gray);
     assert(!allocated_bytes);
-    free_psram=4*1024*1024;alloc_fail=true;for(int i=0;i<9;++i)seed_gray(i);prepare_fast_covers();
+    free_psram=4*1024*1024;alloc_fail=true;for(int i=0;i<9;++i){seed_gray(i);}prepare_fast_covers();
     for(int row=0;row<13;++row)assert(!s_covers[row].fast_bits && !s_covers[row].gray);
     assert(!allocated_bytes);
-    alloc_fail=false;rows=9;for(int i=0;i<9;++i)seed_gray(i);prepare_fast_covers();
+    alloc_fail=false;rows=9;for(int i=0;i<9;++i){seed_gray(i);}prepare_fast_covers();
     fast=false;prepare_fast_covers();assert(!allocated_bytes);
     // 普通/水波纹只保留灰阶；模式变化释放，快刷再按需生成。
     // Ordinary/ripple retain gray only; mode changes release the obsolete representation.
-    for(int i=0;i<9;++i)seed_gray(i);prepare_fast_covers();assert(allocated_bytes==9u*176*240);
+    for(int i=0;i<9;++i){seed_gray(i);}prepare_fast_covers();assert(allocated_bytes==9u*176*240);
     for(int row=0;row<13;++row)assert(!s_covers[row].fast_bits);
     app_book_cover_mode_changed();assert(!allocated_bytes);
-    fast=true;for(int i=0;i<9;++i)seed_gray(i);prepare_fast_covers();s_view=MANAGE;prepare_fast_covers();assert(!allocated_bytes);
-    s_view=SHELF;for(int i=0;i<9;++i)seed_gray(i);prepare_fast_covers();invalidate_covers();assert(!allocated_bytes);
+    fast=true;for(int i=0;i<9;++i){seed_gray(i);}prepare_fast_covers();s_view=MANAGE;prepare_fast_covers();assert(!allocated_bytes);
+    s_view=SHELF;for(int i=0;i<9;++i){seed_gray(i);}prepare_fast_covers();invalidate_covers();assert(!allocated_bytes);
     for(int row=0;row<13;++row)assert(!s_covers[row].gray && !s_covers[row].fast_bits && s_covers[row].index==-1);
     // 快刷封面白底纯白，黑区少量白点；字形与收藏在缓存之外绘制。
     // Pure white cover backgrounds remain white, while solid blacks contain sparse white dots; glyphs and favorites are outside the cache.
@@ -164,7 +164,11 @@ int main(void) {
     for(int i=0;i<4;++i){seed_gray(i);s_covers[i].width=i==0?176:i==1?70:160;s_covers[i].height=i==0?100:i==1?240:160;}
     prepare_fast_covers();assert(allocated_bytes==4u*4494);
     for(int row=0;row<4;++row){EpdRect image=shelf_cover_image(row);assert(image.width<=120&&image.height<=156&&image.width>0&&image.height>0);assert(fast_cover_matches(row,image));assert(!s_covers[row].gray);assert(image.x==71&&image.width==120&&image.height==156);}
-    invalidate_covers();style=2;rows=9;
+    invalidate_covers();style=2;rows=6;
+    for(int i=0;i<9;++i){seed_gray(i);}prepare_fast_covers();
+    assert(allocated_bytes==6u*4494);
+    for(int row=0;row<9;++row){assert(!s_covers[row].gray);assert((s_covers[row].fast_bits!=NULL)==(row<6));}
+    invalidate_covers();rows=9;
     app_ctx_t ctx={0};strcpy(s_shelf[0].path,"/test.epub");s_shelf[0].size=100;s_shelf[0].recent=42;
     for(int i=0;i<80;++i)refresh_cached_progress(&ctx);
     assert(sorts==0 && s_shelf[0].pct==37 && s_shelf[0].chapter==9);

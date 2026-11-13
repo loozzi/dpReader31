@@ -1,5 +1,8 @@
 ## dpReader 1.4.6-vn · Chưa phát hành
 
+- Làm mới bốn trang chính theo mẫu thẻ xám phẳng: ngày trên Trang chủ, các lối tắt riêng, danh sách tệp thoáng và nhóm Cài đặt bo góc; thanh điều hướng nền trắng chỉ tô mục đang chọn.
+- Kiểu Tủ sách mặc định chuyển từ Acrylic sang lưới tối giản 3×2, có tên, định dạng và dung lượng sách; giữ kiểu kệ tối màu và danh sách. Refresh thường giữ nền thẻ xám, Fast tiếp tục tối ưu đen trắng.
+
 - Thanh điều hướng dưới cùng chuyển sang capsule nổi màu kính mờ, với nền riêng cho mục đang chọn; giữ nguyên bốn mục và vùng chạm, hỗ trợ giao diện hai mục.
 - Cập nhật nền chọn bằng refresh xám cục bộ; phản hồi nhấn lấy lại nền mới sau khi chuyển trang.
 - Giữ màu xám của thanh nổi ở mọi mức tương phản giao diện 100–140%, sửa nền thanh và mục chọn bị trắng ở mức mặc định 130%.

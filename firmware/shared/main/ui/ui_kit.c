@@ -784,6 +784,14 @@ static uint8_t floating_material_ink(uint8_t gray) {
     return (uint8_t)(128+((target-128)*100+contrast/2)/contrast);
 }
 
+uint8_t ui_soft_card_color(bool selected) {
+    return floating_material_ink(selected ? 0xdd : 0xee);
+}
+
+void ui_draw_soft_card(uint8_t *fb, EpdRect rect, int radius, bool selected) {
+    ui_fill_round_rect(fb, rect, radius, ui_soft_card_color(selected));
+}
+
 void ui_draw_floating_capsule(uint8_t *fb, EpdRect rect, int radius, bool selected) {
     if(!selected)
         ui_fill_round_rect(fb,(EpdRect){rect.x,rect.y+3,rect.width,rect.height},radius,floating_material_ink(0x88));

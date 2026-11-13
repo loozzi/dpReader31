@@ -5,6 +5,7 @@
  * S31用户最新修订：系统内容黑白、根页底栏保留灰底；根页遵循水波纹模式，子页只侧滑返回沿LTR动画。
  * Latest S31 revision: BW system content retains gray root navigation; roots honor water mode and children animate LTR only on edge return.
  * Revision 2026-11-13: floating navigation extends below the former marker; system roots and edge returns present the entire footer separately in grayscale.
+ * User's soft-gray reference requires gray body transitions outside explicit Fast mode.
  * 事件循环。只做和页面无关的事：读触摸并去抖、三个实体键与菜单把手的路由、切页
  * 时调 on_exit/on_enter、按回调返回值决定怎么刷屏、电源键锁屏、SD 卡上的字体延迟
  * 加载。页面自己的状态和刷新节奏都在 main/apps/ 各自的文件里。
@@ -504,7 +505,9 @@ static void app_present_impl(app_ctx_t* ctx, const app_desc_t* app, app_redraw_t
         if (s_pop_menu_water) direction = E0470_TURN_BTT;
         result = redraw == APP_REDRAW_FULL ? update_display_full(ctx->hl) : returning || root_water
             ? update_display_water_turn(ctx->hl, screen, direction)
-            : update_display_area_diff_with(ctx->hl,display_main_bw_waveform(),MODE_DU,screen);
+            : app_settings_main_fast_refresh()
+                ? update_display_area_diff_with(ctx->hl,display_main_bw_waveform(),MODE_DU,screen)
+                : update_display_gray_transition(ctx->hl,screen);
         // The old marker ended at1120; pills, labels and shadows extend to the bottom.
         // Keep them out of the binary body scan and restore every changed gray pixel.
         if(redraw!=APP_REDRAW_FULL && separate_navigation && result==EPD_DRAW_SUCCESS)

@@ -235,6 +235,9 @@ void ui_fill_round_rect(
 /// 稳定灰阶的悬浮胶囊；普通底带3px阴影，选中底用深灰，不改变文字对比度。
 /// Floating capsule with contrast-stable grays; the base includes a 3px shadow, selection is darker, and text contrast stays unchanged.
 void ui_draw_floating_capsule(uint8_t *framebuffer, EpdRect rect, int radius, bool selected);
+/// Flat page cards share contrast-stable gray tones with the selected navigation tile.
+uint8_t ui_soft_card_color(bool selected);
+void ui_draw_soft_card(uint8_t *framebuffer, EpdRect rect, int radius, bool selected);
 EpdRect ui_inset_rect(EpdRect r, int d);
 /// 合并刷新区域；空矩形视为无区域，结果裁到逻辑屏幕内。
 /// Union refresh regions; empty rectangles contribute nothing, and the result is clipped to the logical screen.

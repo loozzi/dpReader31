@@ -8,6 +8,7 @@
  *
  * 图书书架、阅读、目录与页内进度；文件解析和排版由book模块负责。
  * Book shelf, reader, TOC and progress; book modules own parsing and pagination.
+ * User reference2026-11-13: style2 becomes a flat3x2 grid with title/format/size captions; retain dark-shelf/list options and the existing cover buffers.
  *
  * 用户修订：阅读设置采用已确认的半屏双列排版；自动全刷与翻页效果点按轮换，保留按键控制二级页。
  * User revision: use the approved compact two-column reading sheet; tap cycles refresh/effect and key controls retain their secondary page.
@@ -847,7 +848,13 @@ static EpdRect reader_footer_bar_rect(void) {
     const int inset = READER_FOOTER_SIDE_WIDTH + READER_FOOTER_BAR_GAP;
     return (EpdRect){r.x + inset, r.y + (r.height - 16) / 2, r.width - 2 * inset, 16};
 }
-static int shelf_rows(void) { return s_view == SHELF && app_settings_shelf_style() == 5 ? 4 : BOOK_GRID_ROWS; }
+static int shelf_rows(void) {
+    if(s_view==SHELF) {
+        if(app_settings_shelf_style()==5)return 4;
+        if(app_settings_shelf_style()==2)return 6;
+    }
+    return BOOK_GRID_ROWS;
+}
 #define SHELF_BOOK_LIFT_PX 16
 #define SHELF_LIST_BOUNCE_PX 8
 #define SHELF_FAST_COVER_WIDTH 164
@@ -897,6 +904,8 @@ static void draw_shelf_guard(uint8_t *fb,EpdRect rect,int slot) {
 static EpdRect row_rect(int row) {
     if (s_view == SHELF && app_settings_shelf_style() == 5)
         return (EpdRect){36, 184 + row * 197, 612, 197};
+    if(s_view==SHELF && app_settings_shelf_style()==2)
+        return (EpdRect){36+(row%3)*214,224+(row/3)*376,184,348};
     if (s_view != BULK) {
         int col = row % 3, line = row / 3;
         int cell = (ui_content_width() - 2 * UI_GAP) / 3;
@@ -1329,7 +1338,8 @@ cover_raster_done:;
         ui_text_vc(fb, image.x + image.width / 2, image.y + image.height / 2, 26,
                    title, EPD_DRAW_ALIGN_CENTER, false);
     }
-    ui_draw_round_rect(fb, image, 0, UI_GRAY_BLACK);
+    if(s_view!=SHELF || app_settings_shelf_style()!=2)
+        ui_draw_round_rect(fb, image, 0, UI_GRAY_BLACK);
     if (favorite && image.width >= 28 && image.height >= 42) {
         draw_shelf_favorite_icon(fb, image.x + 10, image.y + 8, 24, 31,
                                  artwork && ((app_settings_main_fast_refresh() && s_view == SHELF && fast_cover_matches(row, image))
@@ -1393,9 +1403,23 @@ static void draw_list_row(uint8_t *fb, int row, const shelf_entry_t *item) {
     ui_draw_control_frame(fb, bar, 5, 0x50);
     if (row < 3) ui_draw_separator(fb, card.y + 196, 50, 584, 0x60);
 }
+static void draw_grid_caption(uint8_t *fb,int row,const shelf_entry_t *item) {
+    EpdRect card=row_rect(row),image=shelf_cover_image(row);
+    char title[128];copy_text(title,sizeof(title),item->name);
+    char *dot=strrchr(title,'.');
+    if(dot&&(!strcasecmp(dot,".epub")||!strcasecmp(dot,".txt")))*dot=0;
+    fit_text(title,22,card.width);
+    ui_text_box(fb,(EpdRect){card.x,image.y+224,card.width,62},22,title,EPD_DRAW_ALIGN_LEFT,false);
+    const char *ext=strrchr(item->path,'.');
+    char detail[48];snprintf(detail,sizeof(detail),"%s · %lu.%lu MB",
+        ext&&!strcasecmp(ext,".epub")?"EPUB":"TXT",
+        (unsigned long)(item->size/1048576),(unsigned long)(((uint64_t)item->size*10/1048576)%10));
+    ui_text_box(fb,(EpdRect){card.x,image.y+288,card.width,32},17,detail,EPD_DRAW_ALIGN_LEFT,false);
+}
+
 static void draw_shelf_furniture(uint8_t* fb) {
     uint8_t style = app_settings_shelf_style();
-    if (!style || style == 5) return;
+    if (!style || style == 5 || style == 2) return;
     for (int row = 0; row < 3; ++row) {
         int top = (s_view == SHELF ? 192 : 224) + row * 282;
         if (style == 1) {
@@ -1424,8 +1448,7 @@ static EpdRect shelf_manage_rect(void) { return (EpdRect){404, 94, 114, 52}; }
 static EpdRect shelf_import_rect(void) { return (EpdRect){528, 94, 120, 52}; }
 static void draw_shelf_header_button(uint8_t *fb, EpdRect r, bool importing) {
     bool pressed = s_pressed_control == (importing ? 115 : 114);
-    ui_fill_round_rect(fb, r, 14, UI_GRAY_WHITE);
-    ui_draw_control_frame(fb, r, 14, 0x70);
+    ui_draw_soft_card(fb,r,14,pressed);
     if (pressed) ui_draw_pressed_round_rect(fb, r, 14);
     ui_text_vc(fb, r.x + r.width / 2, r.y + r.height / 2 + (pressed ? 2 : 0), 19,
                importing ? "+ Nhập sách" : "Quản lý", EPD_DRAW_ALIGN_CENTER, false);
@@ -4337,6 +4360,7 @@ static void render(app_ctx_t* ctx, uint8_t* fb) {
             r.y -= app_settings_shelf_style() == 5 ? SHELF_LIST_BOUNCE_PX : SHELF_BOOK_LIFT_PX;
         draw_shelf_cover(fb, r, row, name, s_shelf[i].favorite);
         if (app_settings_shelf_style() == 5) draw_list_row(fb, row, &s_shelf[i]);
+        if (app_settings_shelf_style() == 2) draw_grid_caption(fb,row,&s_shelf[i]);
     }
     draw_shelf_furniture(fb);
     if(app_settings_main_refresh_mode()==APP_MAIN_REFRESH_NORMAL){

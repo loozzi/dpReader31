@@ -4,6 +4,7 @@
  *
  * 中文：分组设置页；网络短时对时后 PMU 持续走时，开机恢复系统时钟。
  * English: Grouped settings; temporary WiFi sync seeds the PMU, whose RTC restores time at boot.
+ * User reference2026-11-13: flat gray parent cards with separate icons and summaries; preserve profile, five categories and scrolling/hit geometry.
  * Revision2026-10-30: root shows five parent categories; detail Back retains its
  * category and scroll, then category Back returns to the root profile/categories.
  * 用户修订：设置列表滑动仅差分刷新内容，滑动过程中不周期插入黑白清屏。
@@ -1284,7 +1285,10 @@ static void draw_style_thumbnail(uint8_t *fb, int style, int top) {
         ui_fill_rect_fast((EpdRect){left, top + 143, 486, 16}, 0x30, fb);
         ui_hairline(fb, top + 143, left, 486, 0x80);
     } else if (style == 2) {
-        ui_draw_acrylic_guard(fb, (EpdRect){left, top + 94, 486, 70});
+        for(int i=0;i<3;++i) {
+            ui_fill_rect_fast((EpdRect){left+20+i*155,top+152,94,3},0x50,fb);
+            ui_fill_rect_fast((EpdRect){left+20+i*155,top+161,64,2},0x90,fb);
+        }
 
     }
 }
@@ -1579,8 +1583,8 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     if (s_page == SETTINGS_SHELF_STYLE) {
         back_header(fb,"Kiểu hiển thị Tủ sách");
         settings_line(fb, 36, 207, 23, "Chọn giao diện và cách sắp xếp Tủ sách", EPD_DRAW_ALIGN_LEFT, false);
-        static const char *const styles[] = {"Thanh kệ tối màu", "Kệ sách Acrylic", "Danh sách"};
-        static const char *const descriptions[] = {"9 cuốn mỗi trang", "9 cuốn mỗi trang", "Tác giả & tiến độ · 4 cuốn mỗi trang"};
+        static const char *const styles[] = {"Thanh kệ tối màu", "Lưới tối giản", "Danh sách"};
+        static const char *const descriptions[] = {"9 cuốn mỗi trang", "6 cuốn · Tên sách & dung lượng", "Tác giả & tiến độ · 4 cuốn mỗi trang"};
         for (int i = 0; i < 3; ++i) {
             int y = 263 + i * 253 - s_style_scroll;
             if (y + 230 < 242 || y >= settings_viewport_end()) continue;
@@ -1772,7 +1776,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         back_header(fb, "Chế độ làm mới Trang chủ");
         section(fb, 248, "Trang chủ · Tủ sách · Quản lý tệp · Cài đặt");
         const char* names[] = {"Thường", "Làm mới nhanh", "Sóng nước"};
-        const char* details[] = {"Cân bằng giữa độ mịn thang xám và độ sắc nét", "Làm mới đen trắng nhanh, kệ sách dùng họa tiết caro mịn", "Chuyển trang hiệu ứng sóng nước, giữ độ mịn thang xám"};
+        const char* details[] = {"Cân bằng giữa độ mịn thang xám và độ sắc nét", "Làm mới đen trắng nhanh, bìa sách giữ chi tiết bằng chấm mịn", "Chuyển trang hiệu ứng sóng nước, giữ độ mịn thang xám"};
         for (int i = 0; i < 3; ++i) {
             const EpdRect box = {36, 298 + i * 158, 612, 132};
             const bool active = app_settings_main_refresh_mode() == (app_main_refresh_mode_t)i;
@@ -2366,7 +2370,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     }
     const int profile_y=180-s_main_scroll, profile_h=settings_profile_height();
     if (s_settings_group < 0 && profile_y+profile_h>160) {
-        settings_card(fb,(EpdRect){36,profile_y,612,profile_h},24,UI_GRAY_WHITE,0x70);
+        ui_draw_soft_card(fb,(EpdRect){36,profile_y,612,profile_h},24,false);
 #if !DPREADER_LOVE_BOOK
         int avatar_y=profile_y+(profile_h-82)/2;
         bool avatar_ok=s_avatar_ready;
@@ -2389,7 +2393,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         ui_draw_icon(fb,625,profile_y+profile_h/2,26,UI_ICON_CHEVRON_RIGHT,UI_GRAY_BLACK);
     }
     if (s_settings_group < 0) {
-        const int icons[] = {0, 2, 5, 1, 12};
+        const ui_icon_t icons[] = {UI_ICON_WIFI,UI_ICON_SUN,UI_ICON_SLIDERS_HORIZONTAL,UI_ICON_BLUETOOTH,UI_ICON_DOWNLOAD};
         const char *const summaries[] = {
             "WiFi · Bluetooth · KOSync · OPDS",
             "Phông chữ · Làm mới · Nguồn & Ngủ",
@@ -2400,10 +2404,10 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         for (int i=0; i<5; ++i) {
             int y=SETTINGS_PARENT_Y+i*SETTINGS_PARENT_ROW_H-s_main_scroll;
             if(y+SETTINGS_PARENT_ROW_H<=160 || y>=settings_viewport_end())continue;
-            settings_card(fb,(EpdRect){36,y,612,SETTINGS_PARENT_ROW_H-12},22,UI_GRAY_WHITE,0x70);
-            setting_icon(fb,icons[i],67,y+56);
-            ui_text_box(fb,(EpdRect){100,y+8,488,54},27,settings_group_titles[i],EPD_DRAW_ALIGN_LEFT,false);
-            ui_text_box(fb,(EpdRect){100,y+66,488,46},19,summaries[i],EPD_DRAW_ALIGN_LEFT,false);
+            ui_draw_soft_card(fb,(EpdRect){36,y,612,SETTINGS_PARENT_ROW_H-12},22,false);
+            ui_draw_icon(fb,78,y+56,44,icons[i],UI_GRAY_BLACK);
+            ui_text_box(fb,(EpdRect){122,y+8,466,54},27,settings_group_titles[i],EPD_DRAW_ALIGN_LEFT,false);
+            ui_text_box(fb,(EpdRect){122,y+66,466,46},19,summaries[i],EPD_DRAW_ALIGN_LEFT,false);
             ui_draw_icon(fb,625,y+56,26,UI_ICON_CHEVRON_RIGHT,UI_GRAY_BLACK);
         }
     }
@@ -2470,7 +2474,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     const int personal_icons[]={5,10};
 #else
     const char *personal_labels[]={"Kiểu hiển thị Tủ sách","Kiểu màn hình khóa","Mật khẩu màn hình khóa","Chữ ký thanh trạng thái","Giao diện"};
-    const char *personal_values[]={app_settings_shelf_style()==5?"Danh sách":app_settings_shelf_style()==1?"Thanh kệ tối màu":"Kệ sách Acrylic",
+    const char *personal_values[]={app_settings_shelf_style()==5?"Danh sách":app_settings_shelf_style()==1?"Thanh kệ tối màu":"Lưới tối giản",
         app_settings_lock_style()==3?"Khung PNG trong suốt":app_settings_lock_style()==2?"Ghép bìa Tủ sách":app_settings_lock_style()==1?"Hình nền":"Thẻ đọc sách",
         lock_pin_enabled()?"Đã bật":"Đã tắt",signature,app_settings_simple_ui()?"I Love Book":"Đầy đủ"};
     const int personal_icons[]={4,5,16,10,4};

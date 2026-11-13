@@ -96,7 +96,7 @@ static void reader_cases(void){
   assert(bookmark_reads==1&&texts==6&&icon_draws==6&&!live);
   assert(drawn_icons[1]==(saved?UI_ICON_BOOKMARK_CHECK:UI_ICON_BOOKMARK));
   for(int y=0;y<1096;++y)for(int x=0;x<684;++x)assert(frame[y*684+x]==0x33);
-  assert(frame[1201*684+342]==0x88);
+  assert(frame[1212*684+342]==255);
   for(int i=0;i<6;++i){
    EpdRect r=tool_rect(i);int cx=r.x+r.width/2;
    assert(r.y==1096&&r.height==120&&r.width==114);
@@ -113,6 +113,8 @@ static void reader_cases(void){
 CASES = r'''
 int main(void){
  for(contrast=100;contrast<=140;contrast+=10){
+ memset(frame,255,sizeof(frame));ui_draw_soft_card(frame,(EpdRect){36,184,612,378},24,false);
+ assert(frame[300*684+342]==0xee&&frame[563*684+342]==255);
  for(simple=false;;simple=true){
   for(int tab=0;tab<4;tab++){
    if(simple&&tab!=0&&tab!=3)continue;
@@ -121,11 +123,11 @@ int main(void){
    for(int y=0;y<UI_NAV_REFRESH_END;y++)for(int x=0;x<684;x++)assert(frame[y*684+x]==0x33);
    for(int y=UI_NAV_REFRESH_END;y<UI_NAV_TOP+8;y++)for(int x=0;x<684;x++)assert(frame[y*684+x]==255);
    for(int y=UI_NAV_REFRESH_END;y<1216;y++)assert(frame[y*684]==255&&frame[y*684+683]==255);
-   assert(frame[1201*684+342]==0x88);
+   assert(frame[1212*684+342]==255);
    int slots=simple?2:4;
    for(int i=0;i<slots;i++){
     int id=simple?(i?3:0):i,cx=(2*i+1)*684/(2*slots);
-    assert(frame[(UI_NAV_TOP+87)*684+cx]==(id==tab?0x99:0xcc));
+    assert(frame[(UI_NAV_TOP+87)*684+cx]==(id==tab?0xdd:0xff));
     assert(ui_nav_hit(cx,UI_NAV_TOUCH_TOP)==id);
    }
    memcpy(baseline,frame,sizeof(frame));EpdRect dirty;
@@ -226,7 +228,7 @@ with tempfile.TemporaryDirectory() as folder:
     feedback = re.sub(r'^#include[^\n]*\n', '', (ROOT/'main/ui/ui_click_feedback.c').read_text(), flags=re.M)
     kit=ROOT/'main/ui/ui_kit.c'
     book=ROOT/'main/apps/app_book.c'
-    draw = DRAW+feedback+'\n'+function('ui_contrast_gray',kit)+'\n'+function('floating_material_ink',kit)+'\n'+function('ui_draw_floating_capsule',kit)+'\n'+function('ui_nav_hit', ROOT/'main/ui/ui_nav.c')+'\n'+function('icon', ROOT/'main/ui/ui_nav.c')+'\n'+function('ui_nav_draw', ROOT/'main/ui/ui_nav.c')+READER+'\n'+function('tool_rect',book)+'\n'+function('draw_reader_tool_icon',book)+'\n'+function('draw_reader_tools',book)+READER_CASES+CASES
+    draw = DRAW+feedback+'\n'+function('ui_contrast_gray',kit)+'\n'+function('floating_material_ink',kit)+'\n'+function('ui_soft_card_color',kit)+'\n'+function('ui_draw_soft_card',kit)+'\n'+function('ui_draw_floating_capsule',kit)+'\n'+function('ui_nav_hit', ROOT/'main/ui/ui_nav.c')+'\n'+function('icon', ROOT/'main/ui/ui_nav.c')+'\n'+function('ui_nav_draw', ROOT/'main/ui/ui_nav.c')+READER+'\n'+function('tool_rect',book)+'\n'+function('draw_reader_tool_icon',book)+'\n'+function('draw_reader_tools',book)+READER_CASES+CASES
     run(tmp, 'floating-draw', draw)
     harness = (ROOT/'tools/display_navigation_host_test.c').read_text().split('int main(void)')[0]
     # 中文：原区域替身的横条扩展范围改为内容截止线；其余波形及内存断言保留。/ English: Region shim now stops at the body boundary rather than extending through the obsolete marker; retain waveform/memory assertions.

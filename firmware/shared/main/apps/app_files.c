@@ -12,6 +12,7 @@
  * Authorized keyboard revision: rename uses shared T9/QWERTY and a steady caret; exit frees candidates.
  * 用户修订：输入只刷新变化区域，布局切换局部灰阶，避免打字累计整屏清残影。
  * User revision: input refreshes changed regions; layout switches use local grayscale, without accumulating whole-page cleanup.
+ * User reference2026-11-13: flat gray storage/transfer cards and open directory rows; preserve transfer routes, status and hit regions.
  */
 #if DPREADER_BOARD_METALIO47
 #include "metalio_hw.h"
@@ -663,10 +664,9 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             if (s_message[0]) ui_text_caption(fb,(EpdRect){36,file_message_top()-18,612,52},22,s_message,EPD_DRAW_ALIGN_LEFT,false);
         }
     } else {
-        file_text(fb, 36, 91, 52, "Tệp", EPD_DRAW_ALIGN_LEFT, false);
+        file_text(fb, 36, 91, 52, "Tệp tin", EPD_DRAW_ALIGN_LEFT, false);
         EpdRect storage = storage_card_rect();
-        ui_fill_round_rect(fb, storage, 24, UI_GRAY_WHITE);
-        file_card_border(fb, storage, 24);
+        ui_draw_soft_card(fb, storage, 24, false);
         file_text(fb, 58, 188, 27, "Thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
         char total[32], usage[96];
         if (s_sd.mounted) {
@@ -694,15 +694,14 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         static const char *const details[] = {"Cùng mạng", "Không cần mạng", "Cáp máy tính"};
         for (int i = 0; i < 3; ++i) {
             EpdRect card = home_transfer_rect(i);
-            ui_fill_round_rect(fb, card, 20, UI_GRAY_WHITE);
-            ui_draw_control_frame(fb, card, 20, UI_GRAY_BLACK);
+            ui_draw_soft_card(fb, card, 20, false);
             ui_text_box(fb,(EpdRect){card.x+12,card.y+12,card.width-24,40},19,methods[i],EPD_DRAW_ALIGN_CENTER,false);
             ui_text_box(fb,(EpdRect){card.x+12,card.y+60,card.width-24,34},17,details[i],EPD_DRAW_ALIGN_CENTER,false);
         }
         char summary[48]; snprintf(summary, sizeof(summary), "Thư mục gốc · %d mục", s_count);
         file_text(fb, 36, 482, 21, summary, EPD_DRAW_ALIGN_LEFT, false);
         ui_fill_round_rect(fb, (EpdRect){537, 458, 111, 50}, 23, UI_GRAY_WHITE);
-        ui_draw_control_frame(fb, (EpdRect){537, 458, 111, 50}, 23, 0x70);
+        ui_draw_soft_card(fb, (EpdRect){537, 458, 111, 50}, 18, false);
         file_text_center(fb, 592, 483, 19, "Tên ↑", EPD_DRAW_ALIGN_CENTER, false);
         int first = s_page * root_rows();
         int rows = s_count - first;
@@ -710,7 +709,6 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         if (rows < 0) rows = 0;
         EpdRect list = {36, 520, 612, root_rows() * 91};
         ui_fill_round_rect(fb, list, 24, UI_GRAY_WHITE);
-        file_card_border(fb, list, 24);
         if (!s_count) file_text_center(fb, 342, 565, 22, s_message[0] ? s_message : "Thư mục gốc trống", EPD_DRAW_ALIGN_CENTER, false);
         for (int row = 0; row < root_rows(); ++row) {
             int index = first + row;

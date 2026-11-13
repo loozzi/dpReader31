@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * 中文：从原应用文件迁移，保留原许可。/ English: Moved from the original app under its existing license. */
 /* 中文：Full首页界面。/ English: Full Home interface. */
+/* User reference2026-11-13: flat gray resume/shortcut cards, whitespace and recent books; preserve configured utilities and live progress. */
 static void render_root(uint8_t *fb) {
     if(app_settings_simple_ui()){render_simple_root(fb);return;}
 #ifdef DPREADER_LOCAL_LATENCY
@@ -10,7 +11,13 @@ static void render_root(uint8_t *fb) {
 #else
 #define HOME_STAGE(name) do {} while(0)
 #endif
-    ui_nav_status(fb);ui_text(fb,36,91,52,"Trang chủ",EPD_DRAW_ALIGN_LEFT,false);
+    ui_nav_status(fb);
+    struct tm date;
+    if(date_now(&date)) {
+        static const char *const weekdays[]={"Chủ nhật","Thứ Hai","Thứ Ba","Thứ Tư","Thứ Năm","Thứ Sáu","Thứ Bảy"};
+        char heading[64];snprintf(heading,sizeof(heading),"%s, %d tháng %d",weekdays[date.tm_wday],date.tm_mday,date.tm_mon+1);
+        ui_text_box(fb,(EpdRect){36,91,430,62},30,heading,EPD_DRAW_ALIGN_LEFT,false);
+    } else ui_text(fb,36,91,52,"Trang chủ",EPD_DRAW_ALIGN_LEFT,false);
     char value[80];unsigned seconds=today_seconds();
     snprintf(value,sizeof(value),"%u phút",seconds/60);fit(value,24,180);label(fb,490,118,24,value,EPD_DRAW_ALIGN_RIGHT,0x30);
     ring(fb,540,118,30,7,seconds,app_settings_home_goal_minutes()*60);
@@ -18,11 +25,11 @@ static void render_root(uint8_t *fb) {
     else {epd_fill_circle(618,118,30,0x30,fb);label(fb,618,118,30,"K",EPD_DRAW_ALIGN_CENTER,0xff);}
     HOME_STAGE("header");
 #if DPREADER_BOARD_METALIO47
-    const uint8_t card_gray=0xff;
+    const uint8_t card_gray=app_settings_main_fast_refresh()?0xff:ui_soft_card_color(false);
 #else
     const uint8_t card_gray=app_settings_main_fast_refresh()?0xff:0xee;
 #endif
-    home_tag_card(fb,(EpdRect){36,184,612,378},68,14,card_gray);
+    ui_fill_round_rect(fb,(EpdRect){36,184,612,378},24,card_gray);
     home_bold_label(fb,60,222,26,"Đọc tiếp",EPD_DRAW_ALIGN_LEFT,card_gray);
     if(s_excerpt[0]) {
         char quote[BOOK_EXCERPT_CAP+12];snprintf(quote,sizeof(quote),"“%s”",s_excerpt);
@@ -50,27 +57,26 @@ static void render_root(uint8_t *fb) {
         if(filled)ui_fill_round_rect(fb,(EpdRect){track.x,511,filled,10},5,UI_GRAY_BLACK);
     } else label_on(fb,342,410,23,"Sau khi mở sách, bạn có thể đọc tiếp ngay tại đây",EPD_DRAW_ALIGN_CENTER,0x60,card_gray);
     HOME_STAGE("card_body");
-    EpdRect utility_card={36,590,612,206};
-    home_tag_card(fb,utility_card,60,12,card_gray);
     label_on(fb,60,620,24,"Tiện Ích",EPD_DRAW_ALIGN_LEFT,0x30,card_gray);
     if(utilities_configured()) {
         ui_draw_icon(fb,608,620,28,UI_ICON_PENCIL,0);
         for(unsigned i=0;i<4;++i) {
             unsigned action=app_settings_home_utility(i);EpdRect box=utility_button(i);
             ui_fill_round_rect(fb,box,16,card_gray);
-            if(app_settings_home_utility_border())home_frame(fb,box,16);
+            if(app_settings_home_utility_border())ui_draw_round_rect(fb,box,16,ui_soft_card_color(true));
             bool labels=app_settings_home_utility_labels();EpdRect icon=utility_icon_rect(i,labels);
             ui_draw_icon_normalized(fb,icon.x+icon.width/2,icon.y+icon.height/2,icon.width,utility_icons[action],0);
             if(labels)ui_text_caption(fb,(EpdRect){box.x+6,box.y+50,box.width-12,52},18,action?utility_names[action]:"Thêm",EPD_DRAW_ALIGN_CENTER,false);
         }
     }else ui_draw_button(fb,(EpdRect){150,672,384,88},"Thiết lập",false);
+    label(fb,36,810,25,"Đọc gần đây",EPD_DRAW_ALIGN_LEFT,UI_GRAY_BLACK);
     home_book_t *recent[4];unsigned count=recent_books(recent);
     for(unsigned i=0;i<4;++i) {
         EpdRect box=recent_cover(i);
         if(i<count) {
             draw_cover(fb,recent[i],box);
             ui_text_caption(fb,(EpdRect){box.x,1018,box.width,62},19,recent[i]->title,EPD_DRAW_ALIGN_CENTER,false);
-        } else {ui_fill_round_rect(fb,box,12,0xf0);home_frame(fb,box,12);ui_draw_icon(fb,box.x+66,box.y+90,38,UI_ICON_BOOK_OPEN,0x90);}
+        } else {ui_draw_soft_card(fb,box,12,false);ui_draw_icon(fb,box.x+66,box.y+90,38,UI_ICON_BOOK_OPEN,0x90);}
     }
     if(s_utility_notice[0]) {
         EpdRect notice=utility_notice_rect();ui_fill_round_rect(fb,notice,20,0xff);home_frame(fb,notice,20);

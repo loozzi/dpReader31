@@ -39,6 +39,7 @@ static bool s_reader_to_home_water,s_pop_menu_water,nav;
 static int policy,body_calls,nav_calls,full_calls,finished,guarded,fail,rendered;
 static bool navigation_page_ready(app_ctx_t*c,const app_desc_t*a){(void)c;(void)a;return nav;}
 static int app_settings_main_refresh_mode(void){return policy;}
+static bool app_settings_main_fast_refresh(void){return policy==APP_MAIN_REFRESH_FAST;}
 static void main_present_finished(app_ctx_t*c,const app_desc_t*a,app_redraw_t r){(void)c;(void)a;(void)r;++finished;}
 static void ui_click_feedback_reset(void){}
 static void ui_click_feedback_begin(uint8_t*f){(void)f;}
@@ -51,17 +52,17 @@ static int epd_rotated_display_height(void){return 1216;}
 static const void *display_main_bw_waveform(void){return target;}
 static void guard_draw_result(void*h,enum EpdDrawError e){(void)h;assert(e==(fail?EPD_DRAW_FAILED_ALLOC:EPD_DRAW_SUCCESS));++guarded;}
 static enum EpdDrawError update_display_full(void*h){(void)h;++full_calls;memcpy(panel,target,sizeof(panel));return EPD_DRAW_SUCCESS;}
-static enum EpdDrawError body(EpdRect a){
+static enum EpdDrawError body(EpdRect a,bool gray){
  assert(a.x==0&&a.y==0&&a.width==684&&a.height==(nav?1088:1216));
  ++body_calls;if(fail==1)return EPD_DRAW_FAILED_ALLOC;
  /* DU cannot recreate the intermediate gray targets. */
- for(int y=0;y<a.height;++y)panel[y]=target[y]>127?255:0;
+ for(int y=0;y<a.height;++y)panel[y]=gray?target[y]:(target[y]>127?255:0);
  return EPD_DRAW_SUCCESS;
 }
-static enum EpdDrawError update_display_water_turn(void*h,EpdRect a,int d){(void)h;(void)d;return body(a);}
-static enum EpdDrawError update_display_area_diff_with(void*h,const void*w,int m,EpdRect a){(void)h;assert(w==target&&m==MODE_DU);return body(a);}
+static enum EpdDrawError update_display_water_turn(void*h,EpdRect a,int d){(void)h;(void)d;return body(a,true);}
+static enum EpdDrawError update_display_area_diff_with(void*h,const void*w,int m,EpdRect a){(void)h;assert(w==target&&m==MODE_DU);return body(a,false);}
 static enum EpdDrawError update_display_gray_transition(void*h,EpdRect a){
- (void)h;++nav_calls;assert(a.x==0&&a.y==1088&&a.width==684&&a.height==128);
+ (void)h;if(a.y==0)return body(a,true);++nav_calls;assert(a.x==0&&a.y==1088&&a.width==684&&a.height==128);
  if(fail==2)return EPD_DRAW_FAILED_ALLOC;
  memcpy(panel+a.y,target+a.y,a.height);return EPD_DRAW_SUCCESS;
 }
@@ -75,7 +76,7 @@ int main(void){
   for(int old_tab=0;old_tab<4;++old_tab)for(int tab=0;tab<4;++tab){
    body_calls=nav_calls=full_calls=finished=guarded=rendered=0;fail=0;nav=root;
    ctx.request_back_ripple=returning;s_presented_main=&old;
-   memset(panel,255,sizeof(panel));memset(target,0,sizeof(target));
+   memset(panel,255,sizeof(panel));memset(target,0,sizeof(target));if(policy!=APP_MAIN_REFRESH_FAST)target[333]=153;
    for(int y=1088;y<1216;++y){panel[y]=(y%4==old_tab)?153:204;target[y]=(y%4==tab)?153:204;}
    app_present_impl(&ctx,&app,redraw);
    assert(rendered==1&&finished==1&&guarded==1);
