@@ -28,15 +28,20 @@ static void tracked_free(void *p){if(p)--live;free(p);}
 #define free tracked_free
 static void decode_yield(unsigned at){(void)at;}
 typedef struct {unsigned x,y,width,height;} book_crop_t;
+enum {JPEG_IMAGE_SCALE_0, JPEG_IMAGE_SCALE_1_2, JPEG_IMAGE_SCALE_1_4, JPEG_IMAGE_SCALE_1_8};
 '''
 for name in ('luminance','scale_axis'):unit+=fn(name)+'\n'
 unit+='typedef struct {uint16_t at;uint8_t frac;} scale_step_t;\n'
-for name in ('scale_map','scale_next','bilinear4','book_cover_crop'):unit+=fn(name)+'\n'
+for name in ('scale_map','scale_next','bilinear4','book_cover_crop','jpeg_preferred_scale'):unit+=fn(name)+'\n'
 unit+='typedef struct {const uint8_t *data;size_t size,pos;FILE *file;} png_input_t;\n'
 for name in ('png_read_mem','png_gray_rows','png_gray_input'):unit+=fn(name)+'\n'
 unit+=r'''
 #undef free
 int main(int argc,char **argv){
+ assert(jpeg_preferred_scale(1600,2400,176,240)==JPEG_IMAGE_SCALE_1_8);
+ assert(jpeg_preferred_scale(1000,1450,176,240)==JPEG_IMAGE_SCALE_1_4);
+ assert(jpeg_preferred_scale(1000,350,176,240)==JPEG_IMAGE_SCALE_0);
+ assert(jpeg_preferred_scale(1600,2400,684,1026)==JPEG_IMAGE_SCALE_1_2);
  assert(argc==3);
  for(unsigned src=1;src<90;src++)for(unsigned dst=1;dst<130;dst++)for(unsigned i=0;i<dst;i++){
   int at,f;scale_axis(i,dst,src,&at,&f);assert(at>=0&&(unsigned)at<src&&f>=0&&f<256);
@@ -80,7 +85,7 @@ with tempfile.TemporaryDirectory() as tmp:
     native_png=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',684,1216,8,6,0,0,0))+chunk(b'IDAT',zlib.compress(native_raw))+chunk(b'IEND',b'')
     (tmp/'native.png').write_bytes(native_png)
     vendor=root/'managed_components/espressif__libpng/libpng'
-    if not vendor.exists():vendor=Path(os.environ.get('KIIKO_LIBPNG_PATH','/private/tmp/kiikoread-rc90-lock-build-20261011/managed_components/espressif__libpng/libpng'))
+    if not vendor.exists():vendor=Path(os.environ.get('DPREADER_LIBPNG_PATH','/private/tmp/kiikoread-rc90-lock-build-20261011/managed_components/espressif__libpng/libpng'))
     assert vendor.exists(),'Build IDF once to resolve libpng'
     (tmp/'pnglibconf.h').write_bytes((vendor/'scripts/pnglibconf.h.prebuilt').read_bytes())
     names='png pngerror pngget pngmem pngpread pngread pngrio pngrtran pngrutil pngset pngtrans pngwrite pngwio pngwtran pngwutil'.split()

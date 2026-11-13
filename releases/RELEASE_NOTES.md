@@ -1,10 +1,13 @@
-## dpReader 1.3.1-vn · 2026-11-04
+## dpReader 1.4.5 cho Metalio E‑Ink4 Plus (ESP32-S31)
 
-- Home có ba chế độ **Đầy đủ**, **Đơn giản** và **Đơn giản hoàn toàn**. Chế độ Đơn giản hoàn toàn dùng thẻ Đọc tiếp lớn, nền bìa sách, lời chào cá nhân và trích đoạn hoặc tên chương. Vuốt lên mở **Pop menu** (Mở sách, Truyền file, OPDS, Cài đặt), vuốt xuống ở cả ba chế độ mở **Quick Settings**.
-- Giữ lựa chọn font Bitter tích hợp khi khôi phục cấu hình.
-- Danh mục Tải Font chữ thay các mục font tiếng Trung bằng Literata, Lora, Noto Serif, Merriweather và Source Serif 4 từ Google Fonts, có hỗ trợ tiếng Việt.
-- Việt hóa toàn bộ thông báo kết nối, tải, kiểm tra tệp, hoàn tất và lỗi trong phần Tải Font chữ.
-- Sửa bố cục xác nhận OTA khi có bản mới và ưu tiên xuống dòng ghi chú theo từ.
+- Thêm **Flash** trong Hiệu ứng lật trang. Flash quét đồng thời toàn màn hình, hỗ trợ ảnh và Đảo Màu.
+- Sóng Nước trong trình đọc dùng 6 dải, quét sát mép trên để xử lý dấu tiếng Việt ở dòng đầu. Khi bật Khử răng cưa, tăng hai xung cho điểm ảnh chuyển sang đen và giữ 41 nhịp quét.
+- Thêm **Tương phản chữ** trong Phông chữ → Tùy chỉnh để làm tối viền chữ khi bật Khử răng cưa.
 
+Có hai bản Full và Love Book. Chọn đúng bản đang dùng khi cập nhật.
 
-Trong **Cài đặt → Cá nhân hóa → Giao diện**, chọn Đơn giản hoặc Đơn giản hoàn toàn để dùng Home mới. Các font tải về hỗ trợ tiếng Việt và được lưu trên thẻ nhớ.
+- Từ **1.4.3** trên bố cục NVS 256 KiB, cập nhật qua OTA hoặc chọn nạp cập nhật trên Web Flash.
+- Từ **1.4.2**, nạp cập nhật qua USB một lần.
+- Từ **1.4.1 trở xuống** hoặc firmware khác, sao lưu cài đặt ra thẻ SD trước khi chọn nạp toàn phần. Sau khi cài xong, dùng chức năng khôi phục từ thẻ SD.
+
+[Web Flash](https://dephia31.github.io/dpReader31/)

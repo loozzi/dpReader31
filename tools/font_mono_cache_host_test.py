@@ -19,19 +19,20 @@ unit=r'''
 #include "vn_diacritics.h"
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
-#define KIIKO_BOARD_METALIO47 1
+#define DPREADER_BOARD_METALIO47 1
 #define TTF_CACHE_LIMIT (1024*1024)
 #define TTF_CACHE_BUCKETS 256
 #define MALLOC_CAP_SPIRAM 1
 #define MALLOC_CAP_8BIT 2
 static uint8_t s_cover[256];
-static bool s_antialias,admit=true,force_fallback,fail_alloc;
+static bool s_antialias,s_text_contrast,admit=true,force_fallback,fail_alloc;
 static int current_weight=400,s_stroke_adjust;
 static stbtt_fontinfo font_info;
 '''
 a=text.index('typedef struct glyph_entry {');b=text.index('} glyph_entry_t;',a)+len('} glyph_entry_t;');unit+=text[a:b]+'\n'
 unit+=r'''
 static bool font_ready=true,bench_on;
+static uint32_t s_glyph_failures;
 static struct{uint64_t glyphs,hits,misses,raster_us;}bench;
 static int64_t esp_timer_get_time(void){return 0;}
 static void warm_runs(int px,const char *s){(void)px;(void)s;}
@@ -61,6 +62,15 @@ int main(int argc,char**argv){assert(argc==2);FILE*f=fopen(argv[1],"rb");assert(
  s_antialias=true;assert(!cache_lookup('m',73));glyph_entry_t*gray=rasterize_glyph('m',73);assert(gray&&!gray->mono_mode&&!gray->packed_mono&&gray->advance_x==mono->advance_x);
  assert(gray->hinted_gray);
  for(int y=0;y<gray->height;++y)for(int x=0;x<gray->width;++x){uint8_t a=glyph_alpha(gray,x,y),v=mix_glyph_ink(gray,a,0,15);assert(v<=15);assert(v==(15u*(255u-a)+127u)/255u);assert(v+mix_glyph_ink(gray,a,15,0)==15);}
+ s_text_contrast=true;unsigned darker=0;
+ for(int y=0;y<gray->height;++y)for(int x=0;x<gray->width;++x){
+  uint8_t a=glyph_alpha(gray,x,y),v=mix_glyph_ink(gray,a,0,15);
+  unsigned standard=(15u*(255u-a)+127u)/255u;
+  assert(v<=standard && v+mix_glyph_ink(gray,a,15,0)==15);
+  darker+=v<standard;
+ }
+ assert(darker>0);
+ s_text_contrast=false;
  bool intermediate=false;for(int y=0;y<gray->height;++y)for(int x=0;x<gray->width;++x){uint8_t a=glyph_alpha(gray,x,y);intermediate|=a>0&&a<255;}assert(intermediate);
  assert(mono->layout_top==gray->layout_top&&mono->layout_height==gray->layout_height&&mono->layout_left==gray->layout_left);
  s_antialias=false;assert(cache_lookup('m',73)==mono);

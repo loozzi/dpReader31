@@ -5,6 +5,11 @@
 int main(void) {
     (void)mkdir("build",0700);(void)mkdir("build/book-tests",0700);(void)mkdir(APP_SETTINGS_BACKUP_ROOT,0700);
     app_settings_init();assert(!app_settings_simple_ui());
+    stored_ui_choice=1;s_simple_choice_known=false;app_settings_init();
+    assert(app_settings_simple_full_ui()&&app_settings_ui_mode()==2);
+    assert(app_settings_set_ui_mode(1)==ESP_OK&&stored_ui_choice==2&&app_settings_ui_mode()==2);
+    assert(app_settings_set_ui_mode(0)==ESP_OK);
+
     assert(app_settings_set_ui_mode(2)==ESP_OK&&app_settings_simple_ui()&&app_settings_simple_full_ui());
     app_settings_init();assert(app_settings_ui_mode()==2);
     commit_fails=true;assert(app_settings_set_ui_mode(0)!=ESP_OK&&app_settings_ui_mode()==2);commit_fails=false;
@@ -65,7 +70,7 @@ int main(void) {
     assert(app_settings_backup_save()==ESP_OK);
     FILE *file=fopen(BACKUP_FILE,"r+b");assert(file);
     settings_backup_v1_t base;uint8_t extension[7];settings_backup_profile_t profile;
-    assert(fread(&base,1,sizeof(base),file)==sizeof(base)&&backup_version(&base)==30);
+    assert(fread(&base,1,sizeof(base),file)==sizeof(base)&&backup_version(&base)==32);
     assert(fread(extension,1,7,file)==7);
     assert(fread(&profile,1,sizeof(profile),file)==sizeof(profile)&&(profile.home_full_refresh&64));
     /* V27's retired bit must not opt into simple UI. Keep its original checked byte layout. */
@@ -76,7 +81,16 @@ int main(void) {
     for(unsigned i=0;i<4;++i)profile.checksum[i]=hash>>(i*8);
     rewind(file);assert(fwrite(&base,1,sizeof(base),file)==sizeof(base));
     assert(fwrite(extension,1,7,file)==7);
-    assert(fwrite(&profile,1,sizeof(profile),file)==sizeof(profile));assert(!fclose(file));
+    assert(fwrite(&profile,1,sizeof(profile),file)==sizeof(profile));
+    long accounts_offset=sizeof(base)+sizeof(extension)+sizeof(profile)+sizeof(settings_backup_keys_t)+
+        sizeof(settings_backup_hold_t)+sizeof(settings_backup_indent_adjust_t)+sizeof(settings_backup_weight_t)+
+        sizeof(settings_backup_wifi_t)+sizeof(settings_backup_background_t)+sizeof(settings_backup_home_t)+
+        sizeof(settings_backup_background_t)+sizeof(settings_backup_indent_adjust_t)+sizeof(reader_backup_t)+
+        sizeof(settings_backup_utilities_t)+sizeof(backup_identity_t);
+    assert(!fseek(file,accounts_offset+sizeof(settings_backup_accounts_t)+sizeof(settings_backup_preferences_t),SEEK_SET));
+    uint8_t history[4096];size_t bytes=fread(history,1,sizeof(history),file);assert(feof(file));
+    assert(!fseek(file,accounts_offset,SEEK_SET)&&fwrite(history,1,bytes,file)==bytes);
+    assert(!fflush(file)&&!ftruncate(fileno(file),accounts_offset+bytes));assert(!fclose(file));
     assert(app_settings_backup_restore()==ESP_OK&&app_settings_simple_ui());
-    puts("PASS simple UI preference: default off, commit failure keeps live state, V30 round-trip, four label/border combinations and independent custom shortcuts, legacy restore and transient/cold-read failures preserve local choice");
+    puts("PASS simple UI preference: default off, commit failure keeps live state, V32 round-trip, four label/border combinations and independent custom shortcuts, legacy restore and transient/cold-read failures preserve local choice");
 }

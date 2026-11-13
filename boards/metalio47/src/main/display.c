@@ -8,6 +8,8 @@
  *
  * 普通子页返回沿用柔和端点；用户反馈残影后，周期清理改为原厂整屏GC，不再保留导航/白底。
  * Ordinary child returns retain soft endpoints; after the reported ghosting, periodic cleanup uses vendor full-panel GC including navigation/white backgrounds.
+ * 用户2026-11-12修订：悬浮胶囊选中底替代五行横条；内容保持原范围，导航单独使用既有完整灰阶差分，不缓存或伪造back。
+ * User revision 2026-11-12: floating selected pills replace the five-row marker; keep body bounds and update navigation separately with existing full-gray differences, without caching or fabricating back.
  * Present path: push by mode, drop HV rails on idle, fall back pclk on
  * underrun.
  * 用户继续优化快刷响应：无灰阶条带时按32位并行归一八像素，已为黑白的字不重复写PSRAM；不删相位、不增加缓存或改变清残影和底栏边界。
@@ -56,7 +58,7 @@
 #include "esp_heap_caps.h"
 #include "display_main_waveform.h"
 #include "display_reader_waveform.h"
-#if KIIKO_S31_TEXT_RIPPLE
+#if DPREADER_S31_TEXT_RIPPLE
 #include "metalio_text_ripple.h"
 #endif
 #include "ui/ui_nav_layout.h"
@@ -78,7 +80,7 @@ bool display_system_binary_set(bool enabled) {
     return previous;
 }
 static bool s_full_refresh_requested;
-bool display_pipeline_enabled(void) { return epd_pipeline_enabled(); }
+bool display_pipeline_enabled(void) { return !app_settings_screen_inverted() && epd_pipeline_enabled(); }
 bool display_page_prepare_begin(void) {
     if(epd_pipeline_enabled())(void)metalio_tps_prepare();
     return false;
@@ -87,6 +89,11 @@ void display_page_prepare_end(bool held) {
     (void)held;metalio_tps_cancel_prepare();
 }
 void display_request_full_refresh(void) { s_full_refresh_requested = true; }
+bool display_toggle_inverted(void) {
+    if(!app_settings_set_screen_inverted(!app_settings_screen_inverted()))return false;
+    display_request_full_refresh();
+    return true;
+}
 static int s_pclk_mhz = DISPLAY_PCLK_DEFAULT_MHZ;
 
 void display_set_bulk_io(bool active) {
@@ -166,8 +173,6 @@ static bool s_main_shelf_exit;
 static bool s_main_changing_page;
 _Static_assert((UI_NAV_REFRESH_END & 31) == 0, "fixed navigation begins on an aligned framebuffer column");
 _Static_assert(UI_NAV_REFRESH_END <= UI_NAV_TOP, "aligned refresh must stop above navigation and marker");
-_Static_assert(UI_NAV_MARKER_SCAN_END <= UI_NAV_TOP + 27, "marker crop must stop before navigation icons");
-_Static_assert((UI_NAV_MARKER_TOP & 1) && !(UI_NAV_MARKER_BOTTOM & 1), "marker nibble guards match current geometry");
 
 static bool main_nav_geometry(void) {
     // 当前板为倒置竖屏：逻辑 y 对应物理 x。其他屏型保持原刷新路径。
@@ -281,25 +286,26 @@ static void main_band_copy(EpdiyHighlevelState *hl, uint8_t *cache, bool restore
     }
 }
 
-static void main_freeze_navigation(EpdiyHighlevelState* hl, bool update_marker) {
+static void main_freeze_navigation(EpdiyHighlevelState* hl, bool update_navigation) {
+    // 完整目标胶囊保留在front；仅内容局刷时才保留真实back中的整个底栏。
+    // Retain the complete target capsule in front; content-only updates retain the actual back navigation.
+    if (update_navigation) return;
     const size_t stride = (size_t)epd_width() / 2;
     for (int y = 0; y < epd_height(); ++y) {
-        uint8_t* front = hl->front_fb + y * stride;
-        const uint8_t* back = hl->back_fb + y * stride;
-        if (!update_marker) {
-            memcpy(front + UI_NAV_REFRESH_END / 2, back + UI_NAV_REFRESH_END / 2,
-                   stride - UI_NAV_REFRESH_END / 2);
-            continue;
-        }
-        // 只保留目标横条的五行；起点为奇数像素，同行字节的分隔线半字节仍取真实 back。
-        // Keep only the five target marker rows; at the odd first pixel retain the neighboring divider nibble from actual back.
-        memcpy(front + UI_NAV_REFRESH_END / 2, back + UI_NAV_REFRESH_END / 2,
-               (UI_NAV_MARKER_TOP - UI_NAV_REFRESH_END) / 2);
-        const int first = UI_NAV_MARKER_TOP / 2;
-        front[first] = (front[first] & 0xf0) | (back[first] & 0x0f);
-        memcpy(front + UI_NAV_MARKER_BOTTOM / 2, back + UI_NAV_MARKER_BOTTOM / 2,
-               stride - UI_NAV_MARKER_BOTTOM / 2);
+        memcpy(hl->front_fb + y * stride + UI_NAV_REFRESH_END / 2,
+               hl->back_fb + y * stride + UI_NAV_REFRESH_END / 2,
+               stride - UI_NAV_REFRESH_END / 2);
     }
+}
+
+static enum EpdDrawError main_present_navigation(EpdiyHighlevelState* hl) {
+    // 包含旧/新选中底的真实灰阶差分；无变化由highlevel跳过，输入与同页内容更新不增加扫描。
+    // Present real gray differences for old/new pills; highlevel skips unchanged navigation, with no extra scan for content-only updates.
+    const EpdWaveform* wave=display_main_gray_waveform();
+    epd_hl_waveform(hl,wave);
+    use_scan_for(wave,MODE_GL16);
+    return epd_hl_update_area(hl,MODE_GL16,25,
+        (EpdRect){0,UI_NAV_REFRESH_END,epd_rotated_display_width(),epd_rotated_display_height()-UI_NAV_REFRESH_END});
 }
 
 void display_main_transition_disarm(void) {
@@ -413,8 +419,8 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
     main_freeze_navigation(hl, true);
     if (fast) main_normalize_body(hl);
     const bool changed = main_body_changed(hl);
-    // 连横条也未变化时不唤醒高压；故障已在上面恢复，显式全刷仍走独立出口。
-    // Avoid waking HV when even the marker is unchanged; faults recover above and explicit full refresh uses its own path.
+    // 内容和悬浮导航均无变化时不唤醒高压；故障和显式全刷仍走原出口。
+    // Avoid waking HV when content and floating navigation are unchanged; retain recovery and explicit-full paths.
     if (!changed && !ui_page_changed(hl)) {
         s_main_band_count = 0;
         epd_hl_waveform(hl, &E0470_WAVEFORM);
@@ -427,15 +433,9 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
     uint8_t *cache = fast && changed && s_main_band_count
         ? heap_caps_aligned_alloc(16, main_band_bytes(), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
     const bool gray_fallback = water || (fast && changed && s_main_band_count && !cache);
-    // 黑白表的等灰迁移均不驱动；仅把有变化的横条并入同次扫描，固定图标保持原样。
-    // The BW/exit tables hold every equal pair. Include only the changing marker
-    // in this scan; frozen divider/labels/icons receive no drive. This removes
-    // an additional comparison and eight-frame serial marker update.
-    // 页面切换把横条并入同次输出，冻住的分隔线/图标由等值迁移保持。
-    // Fuse the marker into the same transition; equal pairs hold frozen furniture/icons.
-    bool marker_with_body=changed&&!cache&&((fast&&!gray_fallback)||changing_page);
+    // 悬浮选中底含中间灰阶，不能并入主内容的黑白波形；底栏在内容完成后独立差分。
+    // Floating selection contains intermediate grays: exclude it from BW body waves and present navigation after the body.
     EpdRect body_area=main_body_area();
-    if(marker_with_body)body_area.height=UI_NAV_MARKER_SCAN_END;
     if (cache) main_band_copy(hl, cache, false);
     const EpdWaveform* body_wave = normal ? display_main_normal_waveform() : gray_fallback ? display_main_gray_waveform()
         : shelf_exit ? display_main_shelf_exit_waveform() : display_main_bw_waveform();
@@ -454,8 +454,6 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
     }
     const bool shelf_regions=normal&&changed&&(s_main_band_count||body_full)&&(changing_page||body_full||shelf37_soft);
     if(shelf37_soft)body_wave=shelf37_soft;
-    if(shelf_regions){marker_with_body=true;body_area.height=UI_NAV_MARKER_SCAN_END;}
-    if(body_full&&!shelf_regions){marker_with_body=false;body_area=main_body_area();}
     if(!body_full)body_wave=main_switch_waveform(body_wave,body_mode);
     use_scan_for(body_wave, body_mode);
     // 空闲普通/黑白根页减少备行等待，不改扫描时钟、相数和脉宽；欠载后本次开机回到192行。
@@ -534,15 +532,7 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
     }
     if(cleanup_applied)ui_page_cleaned(*result);
     s_main_band_count = 0;
-    if (*result == EPD_DRAW_SUCCESS && !marker_with_body) {
-        const EpdRect marker = {0, UI_NAV_MARKER_TOP, epd_rotated_display_width(),
-                               UI_NAV_MARKER_BOTTOM - UI_NAV_MARKER_TOP};
-        // 同页重绘横条无变化时 highlevel 自动跳过；32列扩展范围中其余像素来自 back，保持不驱动。
-        // Highlevel skips an unchanged marker; all other pixels in its expanded 32-column crop come from back and remain undriven.
-        epd_hl_waveform(hl, &E0470_FOLLOW_WAVEFORM);
-        use_scan_for(&E0470_FOLLOW_WAVEFORM, MODE_DU);
-        *result = epd_hl_update_area(hl, MODE_DU, 25, marker);
-    }
+    if (*result == EPD_DRAW_SUCCESS) *result=main_present_navigation(hl);
     if (*result != EPD_DRAW_SUCCESS) *result = main_recover(hl, *result);
     epd_hl_waveform(hl, &E0470_WAVEFORM);
     use_scan_for(&E0470_WAVEFORM, MODE_GL16);
@@ -825,22 +815,19 @@ static enum EpdDrawError update_display_reader_turn_unlocked(EpdiyHighlevelState
     if(s_system_binary)system_normalize(hl);
     const EpdWaveform* turn_waveform = s_system_binary
         ? (system_navigation_gray_changed(hl)?display_main_navigation_waveform():display_main_bw_turn_waveform())
-        : display_reader_text_waveform();
+        : (bands > 1 ? display_reader_ripple_waveform() : display_reader_text_waveform());
     // 普通文字整轮在差分生成前预唤醒TPS，实际驱动仍由引擎按原顺序上电。
     // Pre-wake TPS before ordinary text differences; the engine still enables drive in the established sequence.
     const bool prepared=bands==1&&!s_system_binary&&epd_pipeline_enabled();
     if(prepared)(void)metalio_tps_prepare();
     if(!s_system_binary&&bands==1&&app_settings_reader_turn_effect()==2&&
         display_reader_fast_text_prepare(hl,area))turn_waveform=display_reader_fast_text_waveform();
-#if KIIKO_S31_TEXT_RIPPLE
+#if DPREADER_S31_TEXT_RIPPLE
     // 用户指定普通也用同一22相；单带同步输出，水波纹才分条带，黑白速读仍为原厂DU20。
     // Ordinary shares the22-phase text sequence in one synchronous band; ripple staggers bands and FastBW retains vendorDU20.
     const bool experimental = !s_system_binary && app_settings_reader_turn_effect()!=2 &&
         metalio_text_ripple_prepare(hl, area);
-    if (experimental) {
-        turn_waveform = metalio_text_ripple_waveform();
-        if(bands>1)bands = METALIO_TEXT_RIPPLE_BANDS;
-    }
+    if (experimental) turn_waveform = metalio_text_ripple_waveform();
 #endif
     if(s_system_binary)turn_waveform=main_switch_waveform(turn_waveform,MODE_GL16);
     // 阅读的同步/水波纹在此分流；主页面及侧滑使用各自的既有路径。
@@ -861,7 +848,7 @@ static enum EpdDrawError update_display_reader_turn_unlocked(EpdiyHighlevelState
     use_scan_for(&E0470_WAVEFORM, MODE_GL16);
     rails_keepalive();
     if (result == EPD_DRAW_SUCCESS) return result;
-#if KIIKO_S31_TEXT_RIPPLE
+#if DPREADER_S31_TEXT_RIPPLE
     if (experimental) metalio_text_ripple_disable();
 #endif
     if (result == EPD_DRAW_NO_PHASES_AVAILABLE) {
@@ -912,7 +899,7 @@ static void guard_draw_result_unlocked(EpdiyHighlevelState* hl, enum EpdDrawErro
     ESP_LOGW(TAG, "line queue underrun, pclk back to %d MHz, recovery=%d", DISPLAY_PCLK_SAFE_MHZ, recovered);
 }
 
-#ifdef KIIKO_LOCAL_LATENCY
+#ifdef DPREADER_LOCAL_LATENCY
 int64_t local_display_elapsed_us;
 #define LATENCY_DISPLAY_BEGIN() const int64_t local_display_start=esp_timer_get_time()
 #define LATENCY_DISPLAY_END() (local_display_elapsed_us+=esp_timer_get_time()-local_display_start)
@@ -925,10 +912,117 @@ int64_t local_display_elapsed_us;
 // Once continuous phases finish, back is the real binary frame; pending gray restoration alone does not require full GC16.
 static bool display_needs_full(void) { return s_full_refresh_requested; }
 
+// Dark output uses native waveforms, not white-background transition shortcuts.
+// Keep renderer/caches logical; only the synchronous scan sees physical colors.
+static uint8_t *s_inverted_front;
+static bool s_output_inverted;
+static unsigned s_inverted_pages;
+// Match highlevel's logical-to-physical crop; clip before its uint16 conversion.
+static bool display_inverted_crop(EpdRect *area,EpdRect *physical) {
+    int pw=epd_width(),ph=epd_height();
+    if(area->x==0&&area->y==0&&area->width==pw&&area->height==ph){*physical=*area;return true;}
+    enum EpdRotation rotation=epd_get_rotation();
+    bool portrait=rotation==EPD_ROT_PORTRAIT||rotation==EPD_ROT_INVERTED_PORTRAIT;
+    int lw=portrait?ph:pw,lh=portrait?pw:ph;
+    int64_t right=(int64_t)area->x+area->width,bottom=(int64_t)area->y+area->height;
+    int x=area->x<0?0:area->x,y=area->y<0?0:area->y;
+    if(right>lw)right=lw;
+    if(bottom>lh)bottom=lh;
+    if(right<=x||bottom<=y)return false;
+    int w=(int)right-x,h=(int)bottom-y;
+    *area=(EpdRect){x,y,w,h};
+    switch(rotation) {
+        case EPD_ROT_LANDSCAPE:*physical=*area;break;
+        case EPD_ROT_PORTRAIT:*physical=(EpdRect){pw-y-h,x,h,w};break;
+        case EPD_ROT_INVERTED_LANDSCAPE:*physical=(EpdRect){pw-x-w,ph-y-h,w,h};break;
+        case EPD_ROT_INVERTED_PORTRAIT:*physical=(EpdRect){y,ph-x-w,h,w};break;
+        default:return false;
+    }
+    return true;
+}
+static enum EpdDrawError display_inverted_with(EpdiyHighlevelState *hl, bool force_full,
+        const EpdRect *requested, bool page, bool flash_turn) {
+    if(!hl||!hl->front_fb||!hl->back_fb)return EPD_DRAW_INVALID_CROP;
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
+    bool held=pico_online_display_begin();
+    size_t bytes=(size_t)epd_width()*epd_height()/2;
+    bool inverted=app_settings_screen_inverted();
+    const EpdWaveform *flash = flash_turn ? display_reader_flash_waveform() : NULL;
+    bool full=(flash_turn && !flash)||force_full||s_full_refresh_requested||s_main_fault||inverted!=s_output_inverted;
+    EpdRect area=requested?*requested:epd_full_screen(),physical=epd_full_screen();
+    if(!full&&!display_inverted_crop(&area,&physical)){pico_online_display_end(held);return EPD_DRAW_SUCCESS;}
+    if(!s_inverted_front)s_inverted_front=heap_caps_aligned_alloc(16,bytes,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    if(!s_inverted_front){pico_online_display_end(held);return EPD_DRAW_FAILED_ALLOC;}
+    uint8_t *logical=hl->front_fb;
+    const uint8_t mask=inverted?255:0,old_mask=s_output_inverted?255:0;
+    bool changed=false,gray=false;
+    // Outside a local crop keep the physical baseline, including pixels sharing
+    // an aligned scan column or packed byte. Pending draws there stay pending.
+    for(size_t i=0;i<bytes;++i)s_inverted_front[i]=(requested&&!full?hl->back_fb[i]:logical[i])^mask;
+    if(full)physical=epd_full_screen();
+    const int stride=epd_width()/2;
+    const int right=physical.x+physical.width;
+    for(int y=physical.y;y<physical.y+physical.height;++y) {
+        const size_t row=(size_t)y*stride;
+        for(int x=physical.x/2;x<(right+1)/2;++x) {
+            size_t i=row+x;
+            uint8_t keep=255;
+            if(x==physical.x/2&&(physical.x&1))keep=240;
+            if(x==right/2&&(right&1))keep&=15;
+            uint8_t from=hl->back_fb[i]^old_mask;
+            uint8_t to=logical[i]^mask;
+            to=(s_inverted_front[i]&~keep)|(to&keep);
+            s_inverted_front[i]=to;
+            uint8_t delta=from^to;
+            if(!delta)continue;
+            changed=true;
+            unsigned lo=to&15,hi=to>>4,old_lo=from&15,old_hi=from>>4;
+            if(((delta&15)&&((lo!=0&&lo!=15)||(old_lo!=0&&old_lo!=15)))||
+               ((delta&240)&&((hi!=0&&hi!=15)||(old_hi!=0&&old_hi!=15))))gray=true;
+        }
+    }
+    if(!full&&!changed){pico_online_display_end(held);return EPD_DRAW_SUCCESS;}
+    if(!full&&page&&APP_UI_GC16_EVERY>0&&s_inverted_pages+1>=APP_UI_GC16_EVERY) {
+        full=true;
+        for(size_t i=0;i<bytes;++i)s_inverted_front[i]=logical[i]^mask;
+    }
+    if(s_output_inverted)for(size_t i=0;i<bytes;++i)hl->back_fb[i]^=255;
+    hl->front_fb=s_inverted_front;
+    continuous_du_reset();display_main_transition_cancel();
+    // Existing vendor-derived DU20/GL48 tables hold every equal-value pair.
+    const EpdWaveform *wave=full?&E0470_FULL_WAVEFORM:flash?flash:
+        gray?display_main_gray_waveform():display_main_bw_waveform();
+    enum EpdDrawMode mode=(full||flash)?MODE_GC16:gray?MODE_GL16:MODE_DU;
+    use_scan_for(wave,mode);epd_poweron();epd_hl_waveform(hl,wave);
+    enum EpdDrawError result=(full||flash)?epd_hl_update_screen_full(hl,mode,25):
+        epd_hl_update_area(hl,mode,25,area);
+    if(result==EPD_DRAW_SUCCESS?inverted:s_output_inverted)
+        for(size_t i=0;i<bytes;++i)hl->back_fb[i]^=255;
+    hl->front_fb=logical;
+    if(result==EPD_DRAW_SUCCESS)s_output_inverted=inverted;
+    s_main_fault=result!=EPD_DRAW_SUCCESS;
+    if(result==EPD_DRAW_SUCCESS){
+        s_full_refresh_requested=false;
+        if(full){s_inverted_pages=0;ui_page_cleaned(result);}
+        else if(page)++s_inverted_pages;
+    } else s_full_refresh_requested=true;
+    epd_hl_waveform(hl,&E0470_WAVEFORM);rails_keepalive();
+    pico_online_display_end(held);
+    return result;
+}
+
 // 统一硬件出口，递归调用也必须覆盖整个扫描过程。/ Guard complete scans, including recursive fallback paths.
+static enum EpdDrawError display_inverted_output(EpdiyHighlevelState *hl, bool force_full,
+                                                const EpdRect *requested, bool page) {
+    return display_inverted_with(hl, force_full, requested, page, false);
+}
+
 enum EpdDrawError update_display_mode(
     EpdiyHighlevelState* hl, enum EpdDrawMode mode
 ) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16,NULL,true);
+    }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
@@ -943,6 +1037,9 @@ enum EpdDrawError update_display_mode(
 enum EpdDrawError update_display_mode_diff(
     EpdiyHighlevelState* hl, enum EpdDrawMode mode
 ) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16,NULL,true);
+    }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
@@ -955,6 +1052,9 @@ enum EpdDrawError update_display_mode_diff(
 }
 
 enum EpdDrawError update_display_fast_page(EpdiyHighlevelState* hl) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,false,NULL,true);
+    }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
@@ -969,6 +1069,9 @@ enum EpdDrawError update_display_fast_page(EpdiyHighlevelState* hl) {
 enum EpdDrawError update_display_from_white_with(
     EpdiyHighlevelState* hl, const EpdWaveform* waveform, enum EpdDrawMode mode
 ) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,true,NULL,true);
+    }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
@@ -981,6 +1084,9 @@ enum EpdDrawError update_display_from_white_with(
 }
 
 enum EpdDrawError update_display_from_white(EpdiyHighlevelState* hl) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,true,NULL,true);
+    }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
@@ -993,6 +1099,10 @@ enum EpdDrawError update_display_from_white(EpdiyHighlevelState* hl) {
 }
 
 enum EpdDrawError update_display_white(EpdiyHighlevelState* hl) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        epd_hl_set_all_white(hl);
+        return display_inverted_output(hl,false,NULL,true);
+    }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
@@ -1005,6 +1115,9 @@ enum EpdDrawError update_display_white(EpdiyHighlevelState* hl) {
 }
 
 enum EpdDrawError update_display_full(EpdiyHighlevelState* hl) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,true,NULL,true);
+    }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
@@ -1018,6 +1131,9 @@ enum EpdDrawError update_display_full(EpdiyHighlevelState* hl) {
 // 只由设置中的主动屏幕修复调用；采用S31已有清屏而非Pico盲刷参数。
 // User-triggered Settings repair only; reuse S31 clear, never Pico blind-drive parameters.
 enum EpdDrawError display_panel_repair(EpdiyHighlevelState* hl) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,true,NULL,true);
+    }
     if(!hl||!hl->front_fb||!hl->back_fb)return EPD_DRAW_INVALID_CROP;
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1040,6 +1156,9 @@ enum EpdDrawError display_panel_repair(EpdiyHighlevelState* hl) {
 }
 
 enum EpdDrawError update_display_image_gray(EpdiyHighlevelState* hl) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,true,NULL,true);
+    }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
@@ -1059,6 +1178,9 @@ enum EpdDrawError update_display_image_gray(EpdiyHighlevelState* hl) {
 enum EpdDrawError update_display_with(
     EpdiyHighlevelState* hl, const EpdWaveform* waveform, enum EpdDrawMode mode
 ) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16,NULL,true);
+    }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
@@ -1074,6 +1196,9 @@ enum EpdDrawError update_display_area_with(
     EpdiyHighlevelState* hl, const EpdWaveform* waveform, enum EpdDrawMode mode,
     EpdRect area
 ) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16,&area,false);
+    }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
@@ -1089,6 +1214,9 @@ enum EpdDrawError update_display_area_diff_with(
     EpdiyHighlevelState* hl, const EpdWaveform* waveform, enum EpdDrawMode mode,
     EpdRect area
 ) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16,&area,false);
+    }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
@@ -1101,6 +1229,9 @@ enum EpdDrawError update_display_area_diff_with(
 }
 
 enum EpdDrawError update_display_click_feedback(EpdiyHighlevelState* hl,EpdRect area) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,false,&area,false);
+    }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held=pico_online_display_begin();
@@ -1128,6 +1259,9 @@ enum EpdDrawError update_display_area_full_with(
     EpdiyHighlevelState* hl, const EpdWaveform* waveform, enum EpdDrawMode mode,
     EpdRect area
 ) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16,&area,false);
+    }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
@@ -1139,13 +1273,37 @@ enum EpdDrawError update_display_area_full_with(
     return result;
 }
 
+enum EpdDrawError update_display_reader_flash(EpdiyHighlevelState* hl, EpdRect area) {
+    if (app_settings_screen_inverted() || s_output_inverted)
+        return display_inverted_with(hl, false, NULL, false, true);
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
+    LATENCY_DISPLAY_BEGIN();
+    bool held = pico_online_display_begin();
+    const bool binary = s_system_binary;
+    s_system_binary = false;
+    const EpdWaveform* waveform = display_reader_flash_waveform();
+    enum EpdDrawError result;
+    if (display_needs_full() || !waveform) result = update_display_full_unlocked(hl);
+    else if (s_main_fault || ui_page_changed(hl))
+        result = update_display_area_full_with_unlocked(hl, waveform, MODE_GC16, area);
+    else result = EPD_DRAW_SUCCESS;
+    s_system_binary = binary;
+    s_main_fault = result != EPD_DRAW_SUCCESS;
+    pico_online_display_end(held);
+    LATENCY_DISPLAY_END();
+    return result;
+}
+
 enum EpdDrawError update_display_water_turn(EpdiyHighlevelState* hl, EpdRect area,
                                              e0470_turn_dir_t dir) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,false,&area,true);
+    }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     enum EpdDrawError result = display_needs_full()
-        ? update_display_full_unlocked(hl) : update_display_reader_turn_unlocked(hl, area, dir, E0470_TURN_FAST_BANDS);
+        ? update_display_full_unlocked(hl) : update_display_reader_turn_unlocked(hl, area, dir, E0470_READER_RIPPLE_BANDS);
     s_main_fault=result!=EPD_DRAW_SUCCESS;
     pico_online_display_end(held);
     LATENCY_DISPLAY_END();
@@ -1156,6 +1314,9 @@ enum EpdDrawError update_display_water_turn(EpdiyHighlevelState* hl, EpdRect are
 // One synchronous band shares ripple gray pulses/timing, with no stagger or second output.
 enum EpdDrawError update_display_text_turn(EpdiyHighlevelState* hl, EpdRect area,
                                              e0470_turn_dir_t dir) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,false,&area,true);
+    }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
@@ -1207,6 +1368,9 @@ static bool transition_gray_changed(EpdiyHighlevelState* hl, EpdRect area) {
 }
 
 enum EpdDrawError update_display_gray_transition(EpdiyHighlevelState* hl,EpdRect area) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,false,&area,false);
+    }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held=pico_online_display_begin();
@@ -1235,7 +1399,9 @@ void guard_draw_result(EpdiyHighlevelState* hl, enum EpdDrawError result) {
     METALIO_CPU_GUARD_OR_RETURN();
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
-    guard_draw_result_unlocked(hl, result);
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        if(result!=EPD_DRAW_SUCCESS)(void)display_inverted_output(hl,true,NULL,false);
+    } else guard_draw_result_unlocked(hl, result);
     pico_online_display_end(held);
     LATENCY_DISPLAY_END();
 }
@@ -1243,6 +1409,9 @@ void guard_draw_result(EpdiyHighlevelState* hl, enum EpdDrawError result) {
 // 图形面板恢复原厂完整灰阶，不量化、不借文字短表；每次区域定稿修正中灰历史。
 // Graphical panels retain complete vendor grays without text quantization; settle the region each time to correct midgray history.
 enum EpdDrawError update_display_reader_panel(EpdiyHighlevelState* hl,EpdRect area) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,false,&area,false);
+    }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held=pico_online_display_begin();
@@ -1261,6 +1430,9 @@ enum EpdDrawError update_display_reader_panel(EpdiyHighlevelState* hl,EpdRect ar
 // Only verified same-body panels/sliders use this route; font reflow and manual cleaning retain48-phase owners.
 static bool s_reader_panel37_failed;
 enum EpdDrawError update_display_reader_panel_fast(EpdiyHighlevelState* hl,EpdRect area) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,false,&area,false);
+    }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held=pico_online_display_begin();
@@ -1284,6 +1456,9 @@ enum EpdDrawError update_display_reader_panel_fast(EpdiyHighlevelState* hl,EpdRe
 }
 
 enum EpdDrawError update_display_reader_panel_gray4(EpdiyHighlevelState* hl,EpdRect area,bool erase_underlay) {
+    if(app_settings_screen_inverted() || s_output_inverted) {
+        return display_inverted_output(hl,false,&area,false);
+    }
     if(!display_reader_fast_panels_enabled())return update_display_reader_panel_fast(hl,area);
     static bool failed;
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);

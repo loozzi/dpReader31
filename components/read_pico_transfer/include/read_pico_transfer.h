@@ -89,14 +89,16 @@ esp_err_t read_pico_transfer_preempt_for_network(void);
 /// 锁屏浅睡前停用射频；唤醒后按原会话配置恢复。上传中返回 false。
 bool read_pico_transfer_pause_for_sleep(void);
 void read_pico_transfer_resume_after_sleep(void);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// UI tail only, after a successful reader frame; collect deferred WiFi restoration.
 void read_pico_transfer_resume_service(void);
+/// 显式联网前完成已请求的唤醒清理。/ Finish requested wake cleanup before explicit networking.
+void read_pico_transfer_prepare_network(void);
 bool read_pico_transfer_sleep_blocked(void);
 #endif
 /// 跨任务复制一致状态快照。/ Copy a consistent snapshot across tasks.
 void read_pico_transfer_get_status(read_pico_transfer_status_t *out);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// 包括临时对时/扫描及BLE的射频占用快照，供屏保留余量。/ Include temporary sync/scans and BLE activity when choosing display margins.
 bool read_pico_transfer_radio_busy(void);
 /// Background clients never borrow a page-owned upload server.
@@ -119,6 +121,13 @@ bool read_pico_transfer_wifi_backup_valid(const read_pico_transfer_wifi_backup_t
 /// 恢复单个 NVS 凭据；已运行的 WiFi 会话在下次重连时采用新配置。
 /// Restore the single NVS record; an active WiFi session adopts it on its next connection.
 esp_err_t read_pico_transfer_import_wifi_backup(const read_pico_transfer_wifi_backup_t *backup);
+#define READ_PICO_TRANSFER_WIFI_PROFILES_MAX 6
+esp_err_t read_pico_transfer_export_wifi_profiles_backup(
+    read_pico_transfer_wifi_backup_t out[READ_PICO_TRANSFER_WIFI_PROFILES_MAX]);
+bool read_pico_transfer_wifi_profiles_backup_valid(
+    const read_pico_transfer_wifi_backup_t profiles[READ_PICO_TRANSFER_WIFI_PROFILES_MAX]);
+esp_err_t read_pico_transfer_import_wifi_profiles_backup(
+    const read_pico_transfer_wifi_backup_t profiles[READ_PICO_TRANSFER_WIFI_PROFILES_MAX]);
 /// 仅热点或 STA 资源已释放时可遗忘（含启动失败）；上传中拒绝。
 /// Forget while AP or after releasing STA resources, including a failed start; rejected during upload.
 esp_err_t read_pico_transfer_forget_wifi(void);

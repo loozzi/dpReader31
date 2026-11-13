@@ -30,6 +30,7 @@ static bool s_scan_pending,s_clear_confirm;
 static int control_at(app_ctx_t*c,int x,int y,EpdRect*r){(void)c;(void)y;*r=(EpdRect){x,100,50,70};return x;}
 static app_redraw_t paint_control(app_ctx_t*c,EpdRect r){(void)c;(void)r;++painted;return APP_REDRAW_AREA;}
 static int app_settings_shelf_style(void){return 0;}
+static int metalio_haptic_click(void){assert(false);return 0;}
 static int shelf_rows(void){return 0;}
 static bool present(app_ctx_t*c,app_redraw_t r){(void)c;(void)r;assert(false);return false;}
 static app_redraw_t action_at(app_ctx_t*c,int x,int y){

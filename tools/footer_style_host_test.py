@@ -113,7 +113,6 @@ render = footer_defs + '\n' + r'''
 #define EPD_DRAW_ALIGN_RIGHT 2
 typedef struct {int x,y,width,height;} EpdRect;
 static int style,mask,texts,bars,page_y,pct_y,fast_mode;
-static bool s_save_failed;
 static int s_reader_panel,clears,stale_ink;
 static unsigned page_count=101,progress_pct=61;
 static EpdRect track_seen,done_seen;
@@ -147,7 +146,9 @@ static void ui_text_fixed_vc(uint8_t *fb,int x,int y,int px,const char *s,int al
 }
 '''
 render += define_block + '\n'
-for name in ('reader_area', 'progress_rect', 'reader_footer_visible',
+render += 'static int s_footer_layout_override=-1,s_status_layout_override=-1; static bool footer_enabled=true,status_enabled=true; static bool app_settings_book_footer_enabled(void){return footer_enabled;} static bool app_settings_book_status_enabled(void){return status_enabled;}\n'
+render += 'static int s_margin=24; static bool vertical; static bool app_settings_book_vertical(void){return vertical;}\n'
+for name in ('reader_content_top', 'reader_content_bottom', 'body_rect_for_tracking', 'reader_area', 'progress_rect', 'reader_footer_visible',
              'reader_progress_bar_height', 'reader_footer_chapter_rect', 'reader_footer_meta_rect',
              'reader_footer_bar_rect', 'draw_reader_footer'):
     render += function(name, BOOK) + '\n'
@@ -156,6 +157,54 @@ render += key_enum + '\nstatic uint8_t s_reader_keys[3],s_reader_hold_action,s_v
 for name in ('app_settings_reader_key_action', 'app_settings_reader_hold_action',
              'app_settings_volume_key_action', 'app_settings_reader_key_action_allowed'):
     render += function(name, SETTINGS) + '\n'
+render += r'''
+enum {APP_REDRAW_NONE,APP_REDRAW_FULL,APP_REDRAW_AREA};
+typedef int app_redraw_t;
+enum {READING};
+typedef struct {bool touched;} test_touch_t;
+typedef struct {test_touch_t *touch;uint8_t *fb;} app_ctx_t;
+static int s_view=READING;
+static const char *s_text="abc";
+static size_t s_text_len=3,s_block_count,s_page=2;
+static const void *s_blocks;
+static int s_px=48, builds, saves;
+static int fail_build, fail_write;
+static bool s_reader_footer_pending,s_reader_clock_pending,locked;
+static size_t s_jump_page,s_jump_offset;
+static unsigned image_releases;
+static char s_reader_notice[80];
+static int64_t s_reader_notice_until;
+static void lock_draw(void){assert(!locked);locked=true;}
+static void unlock_draw(void){assert(locked);locked=false;}
+static void invalidate_prep(void){assert(locked);}
+static EpdRect body_rect(void){return body_rect_for_tracking(0);}
+static size_t reader_page_offset(size_t page){assert(page==2);return 212;}
+static size_t book_layout_page_for_offset(size_t offset){assert(offset==212);return 2;}
+static bool book_layout_build_blocks(const char *text,size_t len,const void *blocks,size_t count,EpdRect rect,int px){
+ assert(text==s_text&&len==3&&!blocks&&!count&&px==48&&locked);
+ assert(rect.y+rect.height==reader_content_bottom()-2-(vertical?s_margin:0));
+ ++builds;
+ if(fail_build){--fail_build;return false;}
+ return true;
+}
+static __attribute__((unused)) bool reader_build_current_layout(int px){
+ return book_layout_build_blocks(s_text,s_text_len,s_blocks,s_block_count,body_rect(),px);
+}
+
+static bool app_settings_set_book_footer_enabled(bool on){if(fail_write)return false;footer_enabled=on;return true;}
+static bool app_settings_set_book_status_enabled(bool on){if(fail_write)return false;status_enabled=on;return true;}
+static void release_page_images(void){assert(!locked);++image_releases;}
+static void save_progress(void){assert(!locked&&s_jump_page==2&&s_jump_offset==212);++saves;}
+static int64_t esp_timer_get_time(void){return 1000000;}
+static int64_t s_reader_clock_minute=10,s_reader_clock_painted_minute;
+static unsigned clock_reads,status_paints;
+static int64_t ui_nav_clock_minute(void){++clock_reads;return 11;}
+static void reader_status_paint(uint8_t *fb){(void)fb;assert(locked);++status_paints;}
+'''
+render += function('copy_text', BOOK) + '\n'
+render += function('toggle_reader_bar', BOOK) + '\n'
+render += function('reader_status_visible', BOOK) + '\n'
+render += function('reader_clock_tick', BOOK) + '\n'
 render += r'''
 int main(void){
  assert(READER_FOOTER_LINE_PX==40&&READER_FOOTER_META_PX==40);
@@ -177,6 +226,23 @@ int main(void){
   assert(area.y+area.height==UI_LOCK_HEIGHT-2&&area.height==94);
   assert(body.y+body.height<=chapter.y);assert(area.y<=chapter.y&&area.y+area.height>=page_y);
  }
+ footer_enabled=false;clears=0;texts=0;bars=0;
+ draw_reader_footer(NULL,20);
+ assert(!reader_footer_visible()&&!clears&&!texts&&!bars);
+ EpdRect expanded=reader_area();
+ assert(expanded.y+expanded.height==UI_LOCK_HEIGHT-2);
+ for (int axis=0;axis<2;++axis) {
+  vertical=axis;
+  EpdRect tall=body_rect_for_tracking(0);
+  s_footer_layout_override=1;
+  EpdRect short_body=body_rect_for_tracking(0);
+  assert(tall.height==short_body.height+94 && tall.y==short_body.y && tall.width==short_body.width);
+  s_footer_layout_override=-1;
+ }
+ s_footer_layout_override=1;
+ assert(reader_area().height==expanded.height-94);
+ s_footer_layout_override=-1;
+ footer_enabled=true;
  mask=7;style=2;page_count=1000000;draw_reader_footer(NULL,20);
  EpdRect fixed=reader_footer_bar_rect(page_w,pct_w,true,true);
  assert(READER_FOOTER_CHAPTER_TOP==4);
@@ -206,6 +272,30 @@ int main(void){
   assert(one.x-left==right-(one.x+one.width));
  }
 
+ vertical=false;
+ assert(toggle_reader_bar(false)==APP_REDRAW_FULL&&!footer_enabled&&s_page==2&&saves==1&&builds==1);
+ assert(toggle_reader_bar(false)==APP_REDRAW_FULL&&footer_enabled&&saves==2&&builds==2);
+ fail_build=1;
+ assert(toggle_reader_bar(false)==APP_REDRAW_FULL&&footer_enabled&&saves==2&&builds==4&&s_reader_notice[0]);
+ fail_write=1;
+ assert(toggle_reader_bar(false)==APP_REDRAW_FULL&&footer_enabled&&saves==2&&builds==6&&!locked&&s_footer_layout_override==-1);
+ fail_write=0;
+ s_reader_clock_pending=true;
+ assert(toggle_reader_bar(true)==APP_REDRAW_FULL&&!status_enabled&&saves==3&&builds==7);
+ assert(!s_reader_clock_pending&&image_releases==3);
+ app_ctx_t ctx={0};
+ assert(reader_clock_tick(&ctx)==APP_REDRAW_NONE&&!clock_reads&&!status_paints&&!s_reader_clock_pending);
+ assert(reader_area().y==0&&body_rect().y==8);
+ fail_write=1;
+ assert(toggle_reader_bar(true)==APP_REDRAW_FULL&&!status_enabled&&saves==3&&builds==9);
+ assert(s_status_layout_override==-1&&s_footer_layout_override==-1);
+ fail_write=0;
+ assert(toggle_reader_bar(false)==APP_REDRAW_FULL&&!footer_enabled&&!status_enabled&&saves==4);
+ assert(reader_area().height==1214&&body_rect().height==1204);
+ vertical=true;
+ assert(body_rect().y==8+s_margin&&body_rect().height==1204-2*s_margin);
+ assert(toggle_reader_bar(true)==APP_REDRAW_FULL&&status_enabled&&!footer_enabled&&saves==5);
+ assert(reader_clock_tick(&ctx)==APP_REDRAW_AREA&&status_paints==1&&s_reader_clock_pending);
  puts("PASS: footer labels/toggles/styles with stale-cache clearing, shared row, long page counts and body/refresh bounds");
 }
 '''
@@ -214,6 +304,6 @@ with tempfile.TemporaryDirectory() as folder:
     src = work / 'footer.c'
     src.write_text('#include <stdio.h>\n#include <stdint.h>\n' + render)
     binary = work / 'footer'
-    subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror', '-DKIIKO_BOARD_METALIO47=1',
+    subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror', '-DDPREADER_BOARD_METALIO47=1',
                     str(src), '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)

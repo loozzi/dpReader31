@@ -43,6 +43,8 @@ static void *s_blocks;
 static int s_px=48,s_reader_panel=READER_PANEL_NONE,s_reader_slider=-1,s_view=READING;
 #define s_toolbar (s_reader_panel!=READER_PANEL_NONE)
 static bool s_clear_confirm,s_reader_text_frame,s_reader_turn_pending;
+static bool s_reader_resume_pending,s_reader_raster_failed;
+static bool reader_reflow_font(void){return false;}
 static bool s_reader_image_frame,s_reader_image_exit_pending;
 static bool s_water_turn_pending,s_reader_cleanup,draw_locked,load_failed;
 static int s_water_turn_dir;
@@ -57,6 +59,8 @@ static void copy_text(char *to,size_t cap,const char *from){snprintf(to,cap,"%s"
 static void lock_draw(void){assert(!draw_locked);draw_locked=true;}
 static void unlock_draw(void){assert(draw_locked);draw_locked=false;}
 static void invalidate_prep(void){}
+static unsigned pauses;
+static void pause_reader_prep(void){++pauses;}
 static EpdRect body_rect(void){return(EpdRect){0,0,684,100};}
 static size_t book_layout_page_start_offset(size_t page){return page*layout_span;}
 static const char *s_path="/sdcard/books/test.epub";
@@ -69,6 +73,10 @@ static bool book_layout_build_blocks(const char *text,size_t len,const void *blo
  (void)text;(void)len;(void)blocks;(void)count;(void)px;assert(draw_locked);++reflows;
  if(failed_reflows){--failed_reflows;return false;}layout_span=r.height;return true;
 }
+static __attribute__((unused)) bool reader_build_current_layout(int px){
+ return book_layout_build_blocks(s_text,s_text_len,s_blocks,s_block_count,body_rect(),px);
+}
+
 static void save_progress(void){++saves;}
 static size_t book_chapter_count(void){return 2;}
 static bool load_chapter(app_ctx_t *ctx,size_t chapter,int off,bool last){(void)ctx;(void)off;if(load_failed)return false;s_chapter=chapter;s_page=last?book_layout_page_count()-1:0;return true;}
@@ -76,6 +84,7 @@ static void set_reader_view(int view){s_view=view;}
 static void skip_hidden_image_pages(app_ctx_t *ctx,int dir){(void)ctx;(void)dir;}
 static uint8_t app_settings_reader_full_pages(void){return full_pages;}
 static int effect=1;
+#define APP_READER_TURN_FLASH 3
 static int app_settings_reader_turn_effect(void){return effect;}
 static int test_images;
 static int book_layout_page_image_count(size_t page){(void)page;return test_images;}
@@ -123,6 +132,7 @@ int main(void){
   s_zoom_bits=malloc(32);assert(s_zoom_bits);s_zoom_bits_bytes=32;
   s_zoom_active=s_image_pan_active=s_image_zoom_bw=s_reader_tap.pending=true;
   s_zoom_slot=2;s_image_zoom=2000;s_image_zoom_page=2;s_image_zoom_start_distance=99;
+  unsigned prior_pauses=pauses;
   app_redraw_t r=turn_page(&ctx,dir);
   assert(!s_zoom_bits&&!s_zoom_bits_bytes&&!s_zoom_active&&!s_image_pan_active&&!s_image_zoom_bw&&!s_reader_tap.pending);
   assert(s_zoom_slot==-1&&s_image_zoom==READER_IMAGE_ZOOM_MIN&&s_image_zoom_page==SIZE_MAX&&!s_image_zoom_start_distance);
@@ -130,6 +140,7 @@ int main(void){
   assert(s_stats_pending_turns==1&&s_session_turns==1&&paints==1);
   assert(book_layout_page_start_offset(s_page)<=destination&&destination<book_layout_page_start_offset(s_page)+layout_span);
   assert(reflows==0);
+  assert(pauses==prior_pauses+(unsigned)tools);
   assert(r==(tools?APP_REDRAW_PAGE:APP_REDRAW_AREA));
   assert(s_water_turn_pending==!!(!tools));
  }
@@ -138,6 +149,10 @@ int main(void){
  for(int tools=0;tools<2;++tools)for(int full=0;full<2;++full)for(int prior=0;prior<2;++prior){
   reset(full,tools,2,0);s_reader_text_frame=prior;full_pages=5;s_turns=4;
   assert(turn_page(&ctx,1)!=APP_REDRAW_NONE&&!s_water_turn_pending&&s_reader_cleanup);
+ }
+ for(int direction=-1;direction<=1;direction+=2){
+  reset(true,false,2,0);effect=APP_READER_TURN_FLASH;test_images=1;
+  assert(turn_page(&ctx,direction)==APP_REDRAW_AREA&&s_reader_turn_pending&&!s_water_turn_pending);
  }
  reset(true,false,2,0);test_images=1;assert(turn_page(&ctx,1)==APP_REDRAW_AREA);
  test_images=0;effect=1;
@@ -152,7 +167,7 @@ int main(void){
  reset(true,false,2,0);s_reader_image_exit_pending=true;
  assert(turn_page(&ctx,1)==APP_REDRAW_AREA&&!s_reader_image_exit_pending);
  reset(true,true,2,0);s_reader_image_frame=true;
- assert(turn_page(&ctx,1)==APP_REDRAW_PAGE&&!s_reader_image_exit_pending);
+ assert(turn_page(&ctx,1)==APP_REDRAW_PAGE&&s_reader_image_exit_pending);
  reset(false,true,0,0);assert(turn_page(&ctx,-1)==APP_REDRAW_PAGE);
  assert(!s_toolbar&&s_page==0&&!paints&&!s_stats_pending_turns);
  reset(false,true,8,1);assert(turn_page(&ctx,1)==APP_REDRAW_PAGE);

@@ -1,21 +1,12 @@
-# 小纸 Pico 固件 · 新开发者上手指南 / Read Pico Firmware Onboarding
+# Làm quen với mã nguồn dpReader
 
-本文面向**第一次接触本仓库的人类开发者和 AI agent**。目标：读完后能搭好环境、编译烧写、看懂运行时结构、知道哪些地方不能碰、并且能在不同 agent / 不同会话之间无损地接手任务。
+Nếu đang phát triển dpReader cho Metalio 4.7, bắt đầu từ [README](../README.md), [quy tắc làm việc trong kho](../AGENTS.md) và [hướng dẫn build S31](BOARDS.md). Kho hiện tại dùng bo `metalio47` và hai bản Full, Love Book. Tài liệu [hai bản firmware](FIRMWARE_EDITIONS.md) mô tả mã dùng chung và phần riêng.
 
-This document is for **first-time human developers and AI agents**. After reading you should be able to set up, build, flash, understand the runtime, know the no-go zones, and hand a task over between agents without losing state.
+Khi tiếp quản việc đang làm, dùng [quy trình bàn giao](HANDOFF.md). Khi sửa hành vi, đối chiếu các khối `Frozen` trong tệp liên quan và quy tắc hiện hành trong `AGENTS.md`.
 
-> 权威来源优先级 / Source of truth, in order:
-> 1. 代码文件头里的 `冻结 / Frozen:` 段落（产品决策）
-> 2. [AGENTS.md](../AGENTS.md)（规则、契约、术语表、注释规范）
-> 3. 本文（背景、流程、操作手册、交接约定）
-> 4. [README.md](../README.md) / [README.zh-CN.md](../README.zh-CN.md) / [README.ja-JP.md](../README.ja-JP.md)（产品概述、完整引脚表）
-> 5. 官方在线文档：<https://dot.mindreset.tech/docs/read_0>（产品）、[/start](https://dot.mindreset.tech/docs/read_0/start)（基本操作）、[/firmware](https://dot.mindreset.tech/docs/read_0/firmware)（编译刷写）
->
-> 如本文与上面 1–2 冲突，以 1–2 为准并修正本文。
+Các mục Pico bên dưới là tài liệu tham khảo lịch sử về dự án gốc. Các lệnh, chân, phân vùng và timing của Pico chỉ áp dụng cho phần cứng Pico.
 
----
-
-## 0. 阅读顺序 / Reading order
+## 0. Thứ tự đọc
 
 | 身份 | 顺序 |
 | --- | --- |
@@ -25,7 +16,7 @@ This document is for **first-time human developers and AI agents**. After readin
 
 ---
 
-## 1. 项目定位 / What this is
+## 1. Phạm vi dự án gốc
 
 - **产品**：小纸 Pico（英文/日文文案：Read Pico；型号 RDP-G01-W；内部代号 Read/0，仅限内部使用，不得出现在对外文案）。深圳 MindReset 出品的 4.7 英寸墨水屏开发板。
 - **本仓库**：随板出厂的**官方示例 / 出厂演示固件**。它有两个角色：
@@ -42,7 +33,7 @@ This document is for **first-time human developers and AI agents**. After readin
 
 ---
 
-## 2. 硬件速览 / Hardware at a glance
+## 2. Tổng quan phần cứng Pico
 
 完整引脚表与型号见 [README.md](../README.md)。这里只给开发时最常查的部分。
 
@@ -63,15 +54,14 @@ This document is for **first-time human developers and AI agents**. After readin
 
 ---
 
-## 3. 环境搭建 / Environment
+## 3. Chuẩn bị môi trường Pico
 
-### 3.1 四条路径对比
+### 3.1 编译环境对比
 
 | 路径 | IDF 版本 | 能烧写? | 适用 | 实测状态 |
 | --- | --- | --- | --- | --- |
 | **本机安装 ESP-IDF v6.1** | 钉死 v6.1 | 是（直连 COM 口，`idf.py flash monitor` 一条龙） | 日常开发首选 | 未实测 |
-| **纯 `docker run` 编译**（§3.3） | `espressif/idf:v6.1` | 否；产物在宿主 `build/`，用 §3.4 从宿主烧 | 不想装 IDF、不想折腾 devcontainer | **已实测通过** |
-| **devcontainer**（[.devcontainer/](../.devcontainer/)） | `devcontainer.json` 里 `build.args.DOCKER_TAG` 钉 v6.1 | 否（Windows 下容器看不到 COM 口）；同上从宿主烧 | 想在容器里用 IDF 扩展 / 调试 | 启动踩坑已解决（§13），编译路径同 docker run |
+| **纯 `docker run` 编译**（§3.3） | `espressif/idf:v6.1` | 否；产物在宿主 `build/`，用 §3.4 从宿主烧 | 不想在本机安装 IDF | **已实测通过** |
 | **CI**（[.github/workflows/build.yml](../.github/workflows/build.yml)） | 容器 `espressif/idf:v6.1` | 否 | 编译回归（用 `sdkconfig.ci`） | 由 GitHub 跑 |
 
 **必须 v6.1**：`components/read_pico/read_pico_flash_hpm.c` 依赖 v6 才有的 `esp_flash_chips/spi_flash_override.h`；[dependencies.lock](../dependencies.lock) 记录 `idf 6.1.0`。
@@ -86,7 +76,7 @@ This document is for **first-time human developers and AI agents**. After readin
 
 本机工具链、容器、串口号等机器相关状态写进 `docs/HANDOFF.local.md` 的"环境备注"，不写进本文。
 
-### 3.3 容器编译（docker run / devcontainer）
+### 3.3 容器编译（docker run）
 
 **最短路径（已实测）**——在仓库根目录的 PowerShell 里：
 
@@ -100,8 +90,6 @@ docker run --rm -v ${PWD}:/workspaces/read_pico_firmware -w /workspaces/read_pic
 - 产物落在宿主 `build/`：`bootloader/bootloader.bin`、`partition_table/partition-table.bin`、`Read_Pico.bin`（app，约 1.9 MB）以及 `flash_args`。
 - 容器 build 的副作用（Windows 检出）：`dependencies.lock` 会以 LF 写回，`git status` 显示 `M`。用 `git diff --ignore-cr-at-eol -- dependencies.lock` 确认无内容差异后 `git checkout -- dependencies.lock`。若内容真变了（如版本被改成 6.2.0），说明用错了镜像，回退并换 v6.1。
 - 网络：`docker pull` 报 `TLS handshake timeout` / `failed to fetch oauth token` 是 Docker Hub 链路问题，配置代理后重试，不是镜像不存在。
-
-**devcontainer**：`Dev Containers: Reopen in Container`。容器名 "ESP-IDF QEMU"，`--privileged`，预装 `espressif.esp-idf-extension` 与 `espressif.esp-idf-web`；`export.sh` 已写进 `~/.bashrc`，直接 `idf.py`。Windows + Docker Desktop + WSL 下的启动失败排障见 §13。进入后先 `idf.py --version` 核对 v6.1。
 
 **容器里能不能直接烧？** Windows 宿主下不能：容器看不到 COM 口。选项：
 - **方案 B（已实测）**：容器只编，宿主用 esptool 烧，见 §3.4。
@@ -164,7 +152,7 @@ Get-CimInstance Win32_PnPEntity | Where-Object { $_.PNPDeviceID -match 'VID_303A
 
 ---
 
-## 4. 编译 / 烧写 / 监视 / Build, flash, monitor
+## 4. Build, nạp và theo dõi Pico
 
 ### 4.1 标准命令（本机有 idf.py）
 
@@ -202,7 +190,7 @@ idf.py size
 
 ---
 
-## 5. 仓库地图 / Repository map
+## 5. Bản đồ kho mã nguồn
 
 详细职责表见 [AGENTS.md](../AGENTS.md) "目录职责"。下面是"我要改 X 该去哪"的速查。
 
@@ -218,7 +206,7 @@ idf.py size
 | 改两层菜单 / 三键区几何 | [main/ui/ui_menu.h](../main/ui/ui_menu.h) / `ui_menu.c` |
 | 字体渲染、TF 卡字体加载 | [main/font/ttf_font.h](../main/font/ttf_font.h) / `ttf_font.c` |
 | 重新生成内置字体子集 | [tools/gen_builtin_font.py](../tools/gen_builtin_font.py) → `main/assets/builtin.ttf`（扫描 UI 字串 + `main/font/charset.txt`，≤700 KB） |
-| 开机图 / 锁屏图 | 源图 `assets/image/*.png` → `main/assets/*_4bpp.bin`（4bpp，尺寸必须等于 w×h/2，`images_match_panel()` 会校验） |
+| 开机图 / 锁屏图 | 固件图像资源在 `main/assets/`，参见 §8.6。 |
 | 板级初始化、I2C 普查、EPD 扫描时序、TF 卡、蜂鸣器、flash HPM | [components/read_pico/](../components/read_pico/) |
 | PMU 协议（CW32L010） | [components/read_pico_pmu/](../components/read_pico_pmu/)；线格式 `include/read_pico_pmu_protocol.h`；给 LLM 的完整说明 `docs/llms-full_zh_cn.md` / `llms-full_en.md`；寄存器表 `docs/pmu_registers_*.json` |
 | 出厂自检 / VCOM 标定 | [main/factory/](../main/factory/) |
@@ -235,7 +223,7 @@ idf.py size
 
 ---
 
-## 6. 运行时结构 / Runtime
+## 6. Cấu trúc khi chạy
 
 ### 6.1 开机流程（[main/app_main.c](../main/app_main.c)）
 
@@ -318,7 +306,7 @@ flowchart TD
 
 ---
 
-## 7. 演示页与冻结决策速查 / Demo pages & Frozen decisions
+## 7. Màn hình demo và quyết định cố định
 
 菜单顺序 = [main/app/app_registry.c](../main/app/app_registry.c) `s_apps[]`。每页文件头都有 `冻结 / Frozen:` 段，**改行为前必须先改那段并说明决策为何变化**。摘要（以文件头为准）：
 
@@ -341,7 +329,7 @@ flowchart TD
 
 ---
 
-## 8. 常见任务操作手册 / Playbooks
+## 8. Các thao tác phát triển thường gặp
 
 ### 8.1 加一个演示页
 
@@ -373,11 +361,11 @@ flowchart TD
 
 ### 8.6 换开机图 / 锁屏图
 
-把 PNG 放 `assets/image/`，转成 4bpp 灰度 raw（尺寸 = 1216×684 竖屏，字节数 = w×h/2），覆盖 `main/assets/*_4bpp.bin`。启动时 `images_match_panel()` 会校验大小。
+Metalio 4.7 使用 `main/assets/lock_4bpp.bin` 作为内置锁屏图（684×1216 竖屏，4bpp 灰度，每两像素一字节）。更换标志时运行 `tools/gen_startup_logo.py`，从 `main/assets/branding/dpreader-logo-source.png` 生成标志资源。
 
 ---
 
-## 9. 硬约束清单 / Hard rules (checklist)
+## 9. Danh sách quy tắc bắt buộc
 
 来自 AGENTS.md，整理成可勾选项：
 
@@ -395,7 +383,7 @@ flowchart TD
 
 ---
 
-## 10. 代码与注释风格 / Style
+## 10. Quy ước mã và ghi chú
 
 - 格式：[.clang-format](../.clang-format)（Google 基础，4 空格，100 列，指针贴类型，`else` 跟右括号）。
 - 注释**全仓中英双语**，规范在 AGENTS.md "注释规范"。速记：
@@ -408,7 +396,7 @@ flowchart TD
 
 ---
 
-## 11. 验证与提交 / Verification & PR
+## 11. Xác minh và gửi PR
 
 ### 11.1 验证等级（账本与 PR 必须声明其一）
 
@@ -416,7 +404,7 @@ flowchart TD
 | --- | --- |
 | `未编译` | 只改了文件，没跑 build |
 | `已编译 ci` | `-DSDKCONFIG_DEFAULTS=sdkconfig.ci` 通过 |
-| `已编译 defaults` | 默认配置 build 通过（还未上板）。写明在哪里编的：本机 IDF / docker run / devcontainer |
+| `已编译 defaults` | 默认配置 build 通过（还未上板）。写明在哪里编的：本机 IDF / docker run |
 | `已烧写未验证启动` | esptool `Hash of data verified` 了，但**没开串口看开机日志**。必须附烧写命令原文（尤其地址）。不得写成"真机已验证" |
 | `真机已验证` | 必须附：板型 RDP-G01-W、IDF 版本、串口、供电（USB/电池）、串口里看到的开机日志片段、验证了哪些页/操作、未覆盖项 |
 
@@ -436,7 +424,7 @@ flowchart TD
 
 ---
 
-## 12. Agent 协作与交接约定 / Multi-agent collaboration & handoff
+## 12. Cộng tác và bàn giao
 
 开发者会混用多种 agent（Copilot、Claude、Cursor、Gemini、Codex……）和多次会话。**任何 agent 的私有记忆、聊天记录、会话摘要都不是仓库状态**——它们随会话丢失。能跨 agent 存活的只有：**工作区里的文件**。其中规则与协议入库共享，任务状态留在本机、不入库。
 
@@ -536,7 +524,7 @@ Read AGENTS.md, then docs/ONBOARDING.md, then docs/HANDOFF.md. Do not duplicate 
 
 ---
 
-## 13. 排障速查 / Troubleshooting
+## 13. Xử lý sự cố
 
 ### 13.1 环境与工具（实测遇到过的都在这）
 
@@ -546,8 +534,6 @@ Read AGENTS.md, then docs/ONBOARDING.md, then docs/HANDOFF.md. Do not duplicate 
 | `spi_flash_override.h` 找不到 | IDF 不是 v6.x。`idf.py --version` |
 | 容器 build 后 `dependencies.lock` 变 `M` | `git diff --ignore-cr-at-eol` 为空 → 只是 EOL，`git checkout -- dependencies.lock`。若 `version: 6.1.0` 变成别的 → 镜像错了，回退并换 v6.1 |
 | `docker pull` 报 `TLS handshake timeout` / `failed to fetch oauth token` | Docker Hub 链路问题，配代理后重试 |
-| devcontainer 启动失败，日志里有 `--mount type=bind,source=\\wsl.localhost\<distro>\mnt\wslg\runtime-dir\wayland-0` 和 `stat /run/guest-services/distro-services/<distro>.sock: no such file` 或 `timed out waiting for /mnt/wslg/runtime-dir/wayland-0` | VS Code 想把 WSL 的 Wayland socket 挂进容器，Docker Desktop 挂不了 tmpfs。用户设置加 `"dev.containers.mountWaylandSocket": false`，然后 Rebuild and Reopen。镜像本身没问题，不用重建 |
-| devcontainer 日志里 `code: 137` / `No such container` | 是 `up` 失败后 CLI `docker rm -f` 的后续现象，不是 OOM；看上一行 |
 | `git commit` 报 `Author identity unknown` | 人类配 `user.name` / `user.email`（§11.2）；agent 不要从 log 猜 |
 | 终端里中文提交信息乱码 | 控制台代码页问题（`chcp 65001` 或设 `$OutputEncoding`），文件本身是 UTF-8，不用改 |
 | agent 沙箱里 `python` 报 `拒绝访问` / `参数错误` | 解析到了 `WindowsApps\python.exe` MSIX 垫片。用 conda / 完整路径的 python，或非沙箱执行 |
@@ -580,7 +566,7 @@ Read AGENTS.md, then docs/ONBOARDING.md, then docs/HANDOFF.md. Do not duplicate 
 
 ---
 
-## 14. 外部资源 / Links
+## 14. Tài nguyên bên ngoài
 
 - 产品页 <https://dot.mindreset.tech/docs/read_0>（规格：2050 mAh 电池、5 V 1.8 A 充电、Wi-Fi/BLE 5.0、117.5×66.2×7.3 mm、91 g）
 - 开始使用 <https://dot.mindreset.tech/docs/read_0/start>

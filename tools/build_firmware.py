@@ -18,13 +18,19 @@ from board_source_view import BOARDS, BOARD_ALIASES, canonical_board, materializ
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def metadata(board):
+def metadata(board, edition="full"):
     board = canonical_board(board)
     if board not in BOARDS:
         raise ValueError('Unknown board: ' + board)
     value = json.loads((ROOT / 'boards' / board / 'board.json').read_text())
     if value['id'] != board or value['idf_target'] not in ('esp32s3', 'esp32s31'):
         raise ValueError('Invalid board metadata')
+    if edition not in ('full', 'love-book'):
+        raise ValueError('Unknown firmware edition: ' + edition)
+    value['edition'] = edition
+    if edition == 'love-book':
+        value['version'] = value['version'].removesuffix('-vn') + '-love-vn'
+        value['name'] += ' / Love Book'
     return value
 
 
@@ -38,8 +44,8 @@ def partition_entries(data):
     return result
 
 
-def check_image(data, board):
-    info = metadata(board)
+def check_image(data, board, edition="full"):
+    info = metadata(board, edition)
     if len(data) < 288 or data[0] != 0xe9 or struct.unpack_from('<I', data, 32)[0] != 0xabcd5432:
         raise ValueError('Invalid ESP app image')
     field = lambda start: data[start:start + 32].split(b'\0')[0].decode('ascii')
@@ -55,18 +61,37 @@ def write_usb_launcher(output):
     batch = r'''@echo off
 setlocal
 cd /d "%~dp0"
+if exist ".usb-python\Scripts\python.exe" (
+  ".usb-python\Scripts\python.exe" -c "import esptool, serial; assert tuple(int(x) for x in esptool.__version__.split('.')[:2]) >= (5, 6)" >nul 2>nul
+  if not errorlevel 1 (
+    ".usb-python\Scripts\python.exe" flash_usb.py %*
+    goto flash_done
+  )
+)
 where py >nul 2>nul
 if not errorlevel 1 (
-  py -3 flash_usb.py %*
-) else (
-  where python >nul 2>nul
-  if errorlevel 1 (
-    echo Install Python 3 from python.org, then retry.
-    pause
-    exit /b 1
+  for %%V in (3.12 3.13 3.11 3.14) do (
+    py -%%V -c "import esptool, serial; assert tuple(int(x) for x in esptool.__version__.split('.')[:2]) >= (5, 6)" >nul 2>nul
+    if not errorlevel 1 (
+      py -%%V flash_usb.py %*
+      goto flash_done
+    )
   )
-  python flash_usb.py %*
 )
+where python >nul 2>nul
+if not errorlevel 1 (
+  python -c "import sys, esptool, serial; assert sys.version_info[:2] < (3, 15); assert tuple(int(x) for x in esptool.__version__.split('.')[:2]) >= (5, 6)" >nul 2>nul
+  if not errorlevel 1 (
+    python flash_usb.py %*
+    goto flash_done
+  )
+)
+echo Install Python 3.12 from python.org, then run in this folder:
+echo py -3.12 -m venv .usb-python
+echo .usb-python\Scripts\python.exe -m pip install "esptool==5.6.0"
+pause
+exit /b 1
+:flash_done
 set "FLASH_RESULT=%ERRORLEVEL%"
 echo.
 if not "%FLASH_RESULT%"=="0" echo USB flash failed. Read the error above.
@@ -135,10 +160,10 @@ exit 0
     (output / 'FLASH_USB.command').chmod(0o755)
 
 
-def export(build, output, board):
-    info = metadata(board)
+def export(build, output, board, edition="full", sdk=None, python=None):
+    info = metadata(board, edition)
     app = build / (info['project'] + '.bin')
-    identity = check_image(app.read_bytes(), board)
+    identity = check_image(app.read_bytes(), board, edition)
     entries = partition_entries((build / 'partition_table/partition-table.bin').read_bytes())
     csv = (ROOT / 'boards' / board / info['partitions']).read_text()
     expected = {}
@@ -185,7 +210,7 @@ def export(build, output, board):
     experimental_fast_panels = board == 'metalio47' and cache.exists() and 'METALIO_FAST_READER_PANELS:BOOL=ON' in cache.read_text()
     experimental_network = board == 'metalio47' and cache.exists() and 'METALIO_NETWORK_PROBE:BOOL=ON' in cache.read_text()
     transfer_start = board == 'metalio47' and cache.exists() and 'METALIO_LOCAL_TRANSFER_START:BOOL=ON' in cache.read_text()
-    manifest = {'name': info['name'], 'version': identity['version'], 'board': board,
+    manifest = {'edition': edition, 'name': info['name'], 'version': identity['version'], 'board': board,
                 'experimental_pie_pixels': bool(experimental_pie),
                 'experimental_text_ripple': bool(experimental_ripple),
                 'experimental_reader_panel37': bool(experimental_panel37),
@@ -224,7 +249,7 @@ def export(build, output, board):
     command.extend(['write-flash', '@flash_args'])
     (output / 'flash-command.txt').write_text(shlex.join(command) + '\n')
     # FreeType's binary-distribution acknowledgement travels with every bundle.
-    ft_license = ROOT / 'components/kiiko_freetype/vendor/docs/FTL.TXT'
+    ft_license = ROOT / 'components/dpreader_freetype/vendor/docs/FTL.TXT'
     if ft_license.is_file():
         shutil.copyfile(ft_license, output / 'FREETYPE_LICENSE.txt')
         (output / 'FREETYPE_NOTICE.txt').write_text(
@@ -244,7 +269,7 @@ def export(build, output, board):
     config_text = (build / 'config/sdkconfig.h').read_text()
     auto_backup = '#define CONFIG_DPREADER_AUTO_BACKUP 1' in config_text
     auto_restore = '#define CONFIG_DPREADER_AUTO_RESTORE 1' in config_text
-    result = {'board': board, 'target': info['idf_target'], **identity,
+    result = {'edition': edition, 'board': board, 'target': info['idf_target'], **identity,
               'partitions': entries, 'bootloader_offset': expected_offsets['bootloader'],
               'esptool_stub': loader['stub'], 'free_app_bytes': entries['ota_0'][3] - identity['size'],
               'firmware_bin': str(output / 'dpReader_metalio47_firmware.bin'),
@@ -268,6 +293,40 @@ def export(build, output, board):
         "Compilation does not establish peak internal SRAM usage or device acceptance.\n"
         "USB launchers preserve NVS/books and write only the app and OTA selection.\n"
         "This package has not been flashed or published by the build tool.\n")
+    if entries.get('nvs', (0, 0, 0, 0))[2:] == (0xfb0000, 0x40000):
+        if sdk is None:
+            raise ValueError('NVS256 bundles require the build SDK for FAT migration tools')
+        # Generate an empty, mountable FAT/WL image on the build host.
+        env = dict(os.environ, PYTHONPATH=os.pathsep.join((str(ROOT / 'tools'), str(sdk / 'components/fatfs'))))
+        subprocess.run([str(python or sys.executable), '-c',
+                        'from pathlib import Path; import sys; from nvs256_migrate import build_storage; '
+                        'Path(sys.argv[1]).write_bytes(build_storage({}, []))',
+                        str(output / 'storage-empty.bin')], env=env, check=True)
+        for obsolete in ('nvs256_migrate.py', 'fatfs_runtime.zip'):
+            (output / obsolete).unlink(missing_ok=True)
+        shutil.copyfile(ROOT / 'docs/NVS256_MIGRATION.md', output / 'NVS256_MIGRATION.md')
+        for name in ('dpReader_metalio47_full.bin', 'flash_args', 'flash-command.txt', 'manifest.json'):
+            (output / name).unlink()
+        instructions = (
+            f"dpReader {identity['version']} — NVS chung 256 KiB\n"
+            "Cài lần đầu CHỈ bằng FLASH_USB.command (macOS) hoặc FLASH_USB.bat (Windows).\n"
+            "Python cần esptool >= 5.6 và pyserial. Cài sạch từ bố cục cũ bằng USB.\n"
+            "Launcher tự cài sạch từ bố cục cũ, xóa cài đặt và tệp trong /flash. Thẻ SD giữ nguyên.\n"
+            "USB trên bố cục mới chỉ ghi app và vùng chọn boot.\n")
+        if 'RC' in identity['version']:
+            instructions = (
+                f"dpReader {identity['version']} — NVS256 local RC\n"
+                "Chạy FLASH_USB.command (macOS) hoặc FLASH_USB.bat (Windows).\n"
+                "Yêu cầu layout NVS256 đang dùng ở firmware1.4.2 trở lên.\n"
+                "Chỉ ghi app và vùng chọn boot; giữ bootloader,NVS,sách và dữ liệu.\n"
+                "Layout cũ hoặc trống bị từ chối; không tự cài sạch/chuyển dữ liệu.\n"
+                "Windows ưu tiên .usb-python/Python3.12 với esptool>=5.6 và pyserial.\n")
+        (output / 'HUONG_DAN_FLASH.txt').write_text(instructions)
+        (output / 'BUILD_NOTES.txt').write_text(instructions)
+        result.pop('full_bin', None)
+        result['storage_layout'] = 'nvs256-clean'
+        result['usb_clean_install_required_from_legacy'] = True
+        (output / 'verification.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
     (output / 'SHA256SUMS.txt').write_text(''.join(
         f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n"
         for path in sorted(output.iterdir()) if path.is_file() and path.name != 'SHA256SUMS.txt'))
@@ -300,9 +359,9 @@ def export_test_bundle(source, destination):
 
 
 def build_one(board, args):
-    info = metadata(board)
+    info = metadata(board, args.edition)
     sdk_argument = getattr(args, 'idf_' + board)
-    sdk = Path(sdk_argument or os.environ.get('KIIKO_IDF_' + board.upper(), '') or os.environ.get('IDF_PATH', '')).resolve()
+    sdk = Path(sdk_argument or os.environ.get('DPREADER_IDF_' + board.upper(), '') or os.environ.get('IDF_PATH', '')).resolve()
     if not (sdk / 'tools/idf.py').is_file() or not (sdk / 'components/soc' / info['idf_target']).is_dir():
         raise ValueError(f"{board} requires an ESP-IDF SDK supporting {info['idf_target']}: {sdk}")
     work = args.output.resolve() / board
@@ -310,7 +369,7 @@ def build_one(board, args):
     # 虚拟环境解释器常为符号链接；保留入口路径，不能解析成系统Python。
     # Venv executables are often symlinks; retain that entry path instead of resolving to system Python.
     python = args.python.absolute()
-    version_marker = work / '.kiiko-built-version'
+    version_marker = work / '.dpreader-built-version'
     reconfigure_needed = not (build / 'build.ninja').exists() or not version_marker.exists() or version_marker.read_text().strip() != info['version']
     if reconfigure_needed:
         for obj in build.glob('**/esp_app_desc.c.obj'):
@@ -322,7 +381,8 @@ def build_one(board, args):
             if f.exists():
                 f.unlink()
     command = [str(python), str(sdk / 'tools/idf.py'), '-B', str(build),
-               '-DIDF_TARGET=' + info['idf_target'], '-DKIIKO_BOARD=' + board,
+               '-DIDF_TARGET=' + info['idf_target'], '-DDPREADER_BOARD=' + board,
+               '-DDPREADER_EDITION=' + args.edition,
                '-DSDKCONFIG=' + str(work / 'sdkconfig'),
                '-DSDKCONFIG_DEFAULTS=' + str(source / 'boards' / board / info['sdkconfig']),
                '-DCCACHE_ENABLE=OFF', '-DMETALIO_LOCAL_LATENCY=OFF',
@@ -369,11 +429,11 @@ def build_one(board, args):
     if cache:
         shutil.copytree(cache, source / 'managed_components', dirs_exist_ok=True)
     env = dict(os.environ)
-    env.update(IDF_PATH=str(sdk), IDF_TARGET=info['idf_target'], KIIKO_BOARD=board,
-               KIIKO_PROJECT_VER=info['version'], IDF_PYTHON_ENV_PATH=str(python.parent.parent),
+    env.update(IDF_PATH=str(sdk), IDF_TARGET=info['idf_target'], DPREADER_BOARD=board,
+               DPREADER_PROJECT_VER=info['version'], IDF_PYTHON_ENV_PATH=str(python.parent.parent),
                IDF_PYTHON_CHECK_CONSTRAINTS='no', IDF_SKIP_CHECK_SUBMODULES='1',
                IDF_CCACHE_ENABLE='0', IDF_VER='v6.1', ESP_IDF_VERSION='6.1.0')
-    for key in ('PICO_PROJECT_VER', 'METALIO_PROJECT_VER', 'KIIKO_LOCAL_LATENCY', 'METALIO_LOCAL_LATENCY'):
+    for key in ('PICO_PROJECT_VER', 'METALIO_PROJECT_VER', 'DPREADER_LOCAL_LATENCY', 'METALIO_LOCAL_LATENCY'):
         env.pop(key, None)
     extra = [str(python.parent)]
     if args.tools:
@@ -388,11 +448,11 @@ def build_one(board, args):
     if result.returncode:
         print((work / 'build.log').read_text(errors='replace')[-8000:])
         raise RuntimeError(f'{board} build failed; see {work / "build.log"}')
-    result = export(build, args.output.resolve() / 'packages' / board, board)
+    result = export(build, args.output.resolve() / 'packages' / board, board, args.edition, sdk, python)
     if 'RC' in info['version'] and not getattr(args, 'no_test_export', False):
         destination = ROOT / 'Test Build' / info['version']
         export_test_bundle(args.output.resolve() / 'packages' / board, destination)
-    (work / '.kiiko-built-version').write_text(info['version'] + '\n')
+    (work / '.dpreader-built-version').write_text(info['version'] + '\n')
     print(json.dumps(result, ensure_ascii=False))
     return result
 
@@ -400,7 +460,8 @@ def build_one(board, args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--board', choices=(*BOARDS, *BOARD_ALIASES, 'all'), default='metalio47')
-    parser.add_argument('--output', type=Path, default=ROOT / 'build/boards')
+    parser.add_argument('--edition', choices=('full', 'love-book', 'all'), default='all')
+    parser.add_argument('--output', type=Path, help='Build root; edition subdirectories are always isolated')
     parser.add_argument('--python', type=Path, default=Path(sys.executable))
     parser.add_argument('--tools', type=Path)
     for board in BOARDS:
@@ -434,10 +495,18 @@ def main():
         parser.error('--s31-transfer-startup-test requires metalio47 or all')
     boards = BOARDS if args.board == 'all' else (args.board,)
     if args.list:
-        print(json.dumps([metadata(board) for board in boards], ensure_ascii=False, indent=2))
+        print(json.dumps([metadata(board, edition) for board in boards for edition in (('full','love-book') if args.edition=='all' else (args.edition,))], ensure_ascii=False, indent=2))
         return
-    for board in boards:
-        build_one(board, args)
+    editions = ('full', 'love-book') if args.edition == 'all' else (args.edition,)
+    output = args.output or ROOT / 'build/editions'
+    for edition in editions:
+        args.edition = edition
+        args.output = output / edition
+        for board in boards:
+            build_one(board, args)
+    if editions == ('full', 'love-book') and 'metalio47' in boards and not args.dry_run and not args.no_test_export and 'RC' not in metadata('metalio47')['version']:
+        from stage_edition_web import stage
+        stage(output, output / 'web-preview')
 
 
 if __name__ == '__main__':

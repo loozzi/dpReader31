@@ -377,5 +377,5 @@ assert '!ctx.request_app' not in press
 assert loop.index('ui_click_feedback_nav_tick(ctx.fb,esp_timer_get_time()/1000,&click_area)') < loop.index('switch_to(&ctx, &current, next);')
 for path,name in [('main/ui/ui_nav.c','ui_nav_back'),('main/apps/app_book.c','draw_sheet_back')]:
  draw=function(path,name)
- assert 'UI_ICON_ANIMATE_CIRCLE_CHEVRON_LEFT' in draw
+ assert 'UI_ICON_ARROW_LEFT' in draw
  assert 'epd_draw_circle' not in draw and 'ui_draw_round_rect' not in draw
