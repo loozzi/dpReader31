@@ -17,6 +17,8 @@ enum{SETTINGS_MAIN,SETTINGS_TEXT_EDIT,SETTINGS_SYSTEM_FONT};
 #define UI_GRAY_WHITE 255
 #define SETTINGS_UNLOCK_ICON 18
 #define UI_ICON_CHEVRON_RIGHT 1
+typedef int ui_icon_t;
+enum{UI_ICON_WIFI,UI_ICON_SUN,UI_ICON_SLIDERS_HORIZONTAL,UI_ICON_BLUETOOTH,UI_ICON_DOWNLOAD};
 static int scale=100,wide,tall,s_page,s_main_scroll,s_settings_group;
 static bool s_system_ttf;
 static char s_notice[96];
@@ -48,6 +50,7 @@ static void ui_draw_choice_round_rect(uint8_t*f,EpdRect r,int radius,bool on){}
 #define UI_PX_BTN 24
 static int settings_viewport_end(void){return 1088;}
 static void settings_card(uint8_t*f,EpdRect r,int rad,int fill,int edge){}
+static void ui_draw_soft_card(uint8_t*f,EpdRect r,int rad,bool selected){}
 static void settings_divider(uint8_t*f,int y,int x,int width){}
 static void setting_icon(uint8_t*f,int i,int x,int y){}
 static void settings_switch(uint8_t*f,int y,bool on){}
@@ -59,7 +62,7 @@ static void check_distinct(void){for(int i=0;i<used;i++)for(int j=0;j<i;j++)asse
 for name in ['settings_stacked','settings_detail_row_height','settings_main_row_height','settings_line','settings_center_line','back_header','row','pin_grace_row','section','setting_group','setting_toggle']:
  if name=='setting_group':unit+='#define SETTINGS_ROW_H settings_main_row_height()\n'
  unit+=select_source(function(name,src),'metalio47')+'\n'
-unit+=function('ui_draw_button',kit)+'\n'
+unit+=function('ui_draw_button',kit)+'\n'+select_source(function('settings_button',src),'metalio47')+'\n'
 # Execute the root parent cards from the maintained renderer as well as child rows.
 source_text=src.read_text()
 start=source_text.index('    if (s_settings_group < 0) {',source_text.index('static void render_content('))

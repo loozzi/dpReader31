@@ -15,7 +15,7 @@ BOOKS=[('Truyện Kiều','Nguyễn Du','EPUB · 1.2 MB'),('Số Đỏ','Vũ Tr�
 SAMPLE=library_page()
 
 def card(img,rect,radius=24,selected=False):
- x,y,w,h=rect;ImageDraw.Draw(img).rounded_rectangle((x,y,x+w-1,y+h-1),radius,fill=221 if selected else 238)
+ x,y,w,h=rect;ImageDraw.Draw(img).rounded_rectangle((x,y,x+w-1,y+h-1),radius,fill=187 if selected else 221)
 
 def fit(img,xy,value,size,width,gray=0):
  while font(size).getlength(value)>width and len(value)>2:value=value[:-2]+'…'
@@ -114,6 +114,64 @@ def settings():
   icon(img,'CHEVRON_RIGHT',625,y+56,26)
  return img
 
+def child_shell(title):
+ img=shell(3)
+ icon(img,'ARROW_LEFT',58,114,48)
+ text(img,(108,91),title,34)
+ return img
+
+def group_page(display=False):
+ title='Hiển thị' if display else 'Kết nối'
+ img=child_shell(title)
+ text(img,(42,191),title,20)
+ rows=[('TYPE','Phông chữ hệ thống','Mặc định · 100%'),('CONTRAST','Độ tương phản hệ thống','130%'),
+       ('SLIDERS_HORIZONTAL','Chế độ làm mới Trang chủ','Thường'),('REFRESH_CW','Làm mới kỹ Trang chủ','Tắt'),
+       ('EYE_CLOSED','Tự động khóa màn hình','5 phút'),('LOCK','Nhấn đúp mở khóa','Bật'),
+       ('POWER','Chế độ tắt nguồn / ngủ','Sleep và tắt nguồn'),('SUN','Đèn nền & Rung','Độ sáng & Nhiệt màu'),
+       ('CONTRAST','Đảo màu','Tắt')] if display else [
+       ('WIFI','Kết nối WiFi','Đã kết nối'),('EYE_CLOSED','Tự tắt WiFi khi rảnh','5 phút'),
+       ('BLUETOOTH','Điều khiển lật trang BLE','Tắt'),('EYE_CLOSED','Tự tắt Bluetooth khi rảnh','Tắt'),
+       ('REFRESH_CW','Đồng bộ KOSync','Chưa cấu hình'),('LIBRARY_BIG','Kho sách OPDS','Kho trực tuyến'),
+       ('CLOCK','Ngày & Giờ','Cài đặt')]
+ for i,(name,label,value) in enumerate(rows):
+  y=240+i*82;card(img,(36,y+4,612,74),18);icon(img,name,67,y+41,30)
+  fit(img,(100,y+23),label,25,328)
+  if display and i==5:
+   d=ImageDraw.Draw(img);d.rounded_rectangle((555,y+22,623,y+60),19,fill=0);d.ellipse((588,y+25,620,y+57),fill=255)
+  else:
+   while font(20).getlength(value)>148 and len(value)>2:value=value[:-2]+'…'
+   text(img,(594,y+26),value,20,68,anchor='rt');icon(img,'CHEVRON_RIGHT',625,y+41,26)
+ return img
+
+def wifi_page():
+ img=child_shell('Mạng WiFi');text(img,(42,182),'Mạng hiện tại',24)
+ card(img,(36,224,612,154),22)
+ icon(img,'WIFI',74,265,28);text(img,(104,242),'Home WiFi',29)
+ text(img,(64,298),'Đã kết nối',23);text(img,(64,338),'192.168.1.24',19,68)
+ card(img,(501,244,123,56),16,True);text(img,(562,259),'Kết nối',24,anchor='mt')
+ card(img,(501,315,123,52),16);text(img,(562,329),'Quên',24,anchor='mt')
+ text(img,(42,414),'Mạng tìm thấy',24);text(img,(642,414),'3 mạng',21,anchor='rt')
+ for i,(name,detail) in enumerate([('Home WiFi','Sóng mạnh · Có mật khẩu'),('Reader Studio','Sóng tốt · Có mật khẩu'),('Guest Network','Sóng tốt · Mạng mở')]):
+  y=465+i*95;card(img,(36,y+4,612,87),18)
+  text(img,(64,y+12),name,28);text(img,(64,y+57),detail,21,68);icon(img,'CHEVRON_RIGHT',615,y+47,26)
+ card(img,(36,883,612,66),16);text(img,(342,902),'Quét lại',24,anchor='mt')
+ text(img,(42,976),'Hỗ trợ WiFi 2.4 GHz (kênh 1–13)',21)
+ text(img,(42,1024),'WiFi vẫn giữ kết nối sau khi thoát trang.',19,68)
+ return img
+
+def font_page():
+ img=child_shell('Phông chữ hệ thống')
+ card(img,(36,197,612,118),22);text(img,(60,220),'Cỡ chữ hệ thống',27);text(img,(589,228),'100%',27,anchor='rt')
+ text(img,(60,274),'Chạm để chọn cỡ chữ',18,68)
+ text(img,(40,344),'Xem trước hiệu ứng',22)
+ card(img,(36,398,612,154),22);text(img,(60,420),'Đọc sách mỗi ngày cùng dpReader',29)
+ text(img,(60,494),'Aa 123',25)
+ text(img,(40,580),'Chọn phông chữ',22)
+ for i,label in enumerate(['Phông mặc định (Tích hợp)','Bitter Regular','Phông trên thẻ nhớ']):
+  y=640+i*94;card(img,(36,y,612,78),20,i==0);text(img,(60,y+20),label,26)
+  if i==0:ImageDraw.Draw(img).ellipse((607,y+33,619,y+45),fill=0)
+ return img
+
 def main():
  OUT.mkdir(parents=True,exist_ok=True)
  sheet=Image.new('RGB',(W*2+72,H*2+156),'#e4e4e1');d=ImageDraw.Draw(sheet)
@@ -123,5 +181,12 @@ def main():
   sheet.paste(img,(x,y));d.text((x,y-30),name,font=font(23),fill='#333333')
  d.text((24,2*H+116),'LAYOUT PREVIEW · SAMPLE DATA · NOT A DEVICE CAPTURE',font=font(20),fill='#444444')
  sheet.save(OUT/'pages.png')
+ children=Image.new('RGB',(W*2+72,H*2+156),'#e4e4e1');cd=ImageDraw.Draw(children)
+ for i,(name,draw) in enumerate([('Kết nối',lambda:group_page(False)),('Hiển thị',lambda:group_page(True)),('Mạng WiFi',wifi_page),('Phông chữ hệ thống',font_page)]):
+  img=quantize(draw());img.save(OUT/f'child-{i+1}.png')
+  x=24+(i%2)*(W+24);y=42+(i//2)*(H+48)
+  children.paste(img,(x,y));cd.text((x,y-30),name,font=font(23),fill='#333333')
+ cd.text((24,2*H+116),'LAYOUT PREVIEW · SAMPLE DATA · NOT A DEVICE CAPTURE',font=font(20),fill='#444444')
+ children.save(OUT/'children.png')
  print(OUT/'pages.png')
 if __name__=='__main__':main()

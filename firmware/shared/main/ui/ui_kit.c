@@ -785,7 +785,7 @@ static uint8_t floating_material_ink(uint8_t gray) {
 }
 
 uint8_t ui_soft_card_color(bool selected) {
-    return floating_material_ink(selected ? 0xdd : 0xee);
+    return floating_material_ink(selected ? 0xbb : 0xdd);
 }
 
 void ui_draw_soft_card(uint8_t *fb, EpdRect rect, int radius, bool selected) {

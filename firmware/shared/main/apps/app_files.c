@@ -751,7 +751,7 @@ static void render(app_ctx_t *ctx,uint8_t *fb) {
         ui_draw_button(fb,(EpdRect){356,710,280,80},"Xóa tất cả",false);
     }
 #if DPREADER_BOARD_METALIO47
-    display_monochrome_content(fb);
+    if(app_settings_main_fast_refresh())display_monochrome_content(fb);
 #endif
 }
 
@@ -998,7 +998,7 @@ static app_redraw_t rename_paint(app_ctx_t *ctx, bool field) {
 }
 static bool files_present(app_ctx_t *ctx, app_redraw_t redraw) {
 #if DPREADER_BOARD_METALIO47
-    if(redraw==APP_REDRAW_AREA){
+    if(redraw==APP_REDRAW_AREA && app_settings_main_fast_refresh()){
         display_monochrome_content(ctx->fb);
     }
 #endif

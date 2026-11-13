@@ -114,7 +114,7 @@ CASES = r'''
 int main(void){
  for(contrast=100;contrast<=140;contrast+=10){
  memset(frame,255,sizeof(frame));ui_draw_soft_card(frame,(EpdRect){36,184,612,378},24,false);
- assert(frame[300*684+342]==0xee&&frame[563*684+342]==255);
+ assert(frame[300*684+342]==0xdd&&frame[563*684+342]==255);
  for(simple=false;;simple=true){
   for(int tab=0;tab<4;tab++){
    if(simple&&tab!=0&&tab!=3)continue;
@@ -127,7 +127,7 @@ int main(void){
    int slots=simple?2:4;
    for(int i=0;i<slots;i++){
     int id=simple?(i?3:0):i,cx=(2*i+1)*684/(2*slots);
-    assert(frame[(UI_NAV_TOP+87)*684+cx]==(id==tab?0xdd:0xff));
+    assert(frame[(UI_NAV_TOP+87)*684+cx]==(id==tab?0xbb:0xff));
     assert(ui_nav_hit(cx,UI_NAV_TOUCH_TOP)==id);
    }
    memcpy(baseline,frame,sizeof(frame));EpdRect dirty;

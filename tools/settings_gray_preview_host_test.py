@@ -22,6 +22,7 @@ unit=r'''
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
+#define DPREADER_LOVE_BOOK 0
 typedef struct{int x,y,width,height;}EpdRect;
 typedef enum{APP_REDRAW_NONE,APP_REDRAW_PAGE,APP_REDRAW_FULL,APP_REDRAW_AREA,APP_REDRAW_DONE}app_redraw_t;
 typedef struct{uint8_t *fb;void *hl;const void *request_app;}app_ctx_t;
@@ -37,19 +38,26 @@ static int s_page,s_online_fonts;
 static char s_notice[96];static int picker_requests;static bool picker_transparent,picker_fail;
 static bool app_image_request_lock_picker(const char*p,bool transparent){assert(!p);++picker_requests;picker_transparent=transparent;return !picker_fail;}static bool s_input_settle,s_input_layout,s_scroll_present_pending;
 static EpdRect s_input_area;static int E0470_WAVEFORM,E0470_FOLLOW_WAVEFORM,E0470_FULL_WAVEFORM;
+static bool fast;static bool app_settings_main_fast_refresh(void){return fast;}
+static int navs,choices;
+static struct{bool open;}s_setting_choice;
+static void settings_choice_label(void){}
+static void ui_choice_draw(void*c,uint8_t*f,void(*label)(void)){(void)c;(void)f;(void)label;++choices;}
 static int mono,pushes,paints,cancels,error,guards,style,scans,fulls;static bool binary;
 static bool display_system_binary_set(bool b){bool old=binary;binary=b;return old;}
 static void render_content(app_ctx_t *c,uint8_t *fb){(void)c;++paints;for(int i=0;i<256;++i)fb[i]=(i%16)*17;}
-static void settings_navigation(uint8_t *fb){(void)fb;}
+static void settings_navigation(uint8_t *fb){(void)fb;++navs;}
 static void display_monochrome_content(uint8_t *fb){++mono;for(int i=0;i<256;++i)fb[i]=fb[i]>127?255:0;}
 static bool ui_online_fonts_present(int *f,app_ctx_t *c,app_redraw_t d){(void)f;(void)c;(void)d;return false;}
 static void display_main_transition_cancel(void){++cancels;}
-static void guard_draw_result(void *h,int e){(void)h;assert(!binary&&e==error);++guards;}
+static void guard_draw_result(void *h,int e){(void)h;assert(e==error);++guards;}
 static int update_display_area_full_with(void *h,const int *w,int m,EpdRect a){(void)h;assert(!binary&&w==&E0470_FULL_WAVEFORM&&m==MODE_GL16&&a.width==684&&a.height==1216);++pushes;return error;}
 static int update_display_full(void *h){(void)h;assert(!binary);++pushes;++fulls;return error;}
-static int update_display_area_diff_with(void *h,const int *w,int m,EpdRect a){(void)h;(void)w;(void)m;(void)a;assert(false);return 0;}
+static int gray_scroll,bw_scroll;
+static int update_display_gray_transition(void*h,EpdRect a){(void)h;assert(!fast&&a.y==160&&a.y+a.height==1088);++gray_scroll;return error;}
+static int update_display_area_diff_with(void *h,const int *w,int m,EpdRect a){(void)h;(void)w;assert(fast&&m==MODE_DU&&a.y==160&&a.y+a.height==1088);++bw_scroll;return error;}
 static const int *display_main_bw_waveform(void){return &E0470_WAVEFORM;}
-static int settings_content_end(void){return 1216;}
+static int settings_content_end(void){return 1088;}
 static EpdRect upgrade_progress_area(void){return(EpdRect){0};}
 static void wallpaper_scan(void){++scans;}
 static void app_settings_set_lock_style(unsigned s){style=s;}
@@ -73,13 +81,25 @@ int main(void){
  s_page=SETTINGS_WALLPAPER_PREVIEW;ctx.request_app=(void*)1;int before=pushes;
  assert(settings_present(&ctx,APP_REDRAW_PAGE)&&pushes==before);ctx.request_app=NULL;
  assert(!settings_present(&ctx,APP_REDRAW_NONE)&&pushes==before);
- s_page=SETTINGS_MAIN;render(&ctx,fb);assert(mono==1);for(int i=0;i<256;++i)assert(fb[i]==0||fb[i]==255);
- assert(!settings_present(&ctx,APP_REDRAW_PAGE));
+ s_page=SETTINGS_MAIN;
+ for(int mode=0;mode<3;++mode){
+  fast=mode==1;int before_mono=mono;render(&ctx,fb);
+  assert(mono==before_mono+fast);
+  unsigned levels=0;for(int i=0;i<256;++i)levels|=1u<<(fb[i]/17);
+  assert(levels==(fast?32769u:65535u));
+  assert(!settings_present(&ctx,APP_REDRAW_PAGE));
+  error=0;s_scroll_present_pending=true;
+  int g=gray_scroll,b=bw_scroll;
+  assert(settings_present(&ctx,APP_REDRAW_AREA));
+  assert(gray_scroll==g+!fast&&bw_scroll==b+fast&&!s_scroll_present_pending);
+ }
+ s_setting_choice.open=true;int old_navs=navs;
+ render(&ctx,fb);assert(choices==1&&navs==old_navs+1);s_setting_choice.open=false;
  s_page=SETTINGS_LOCK_STYLE;assert(choose(&ctx,650)==APP_REDRAW_PAGE&&style==2&&!scans&&s_page==SETTINGS_LOCK_STYLE);
  for(int mode=0;mode<2;++mode){ctx.request_app=NULL;assert(choose(&ctx,mode?800:320)==APP_REDRAW_NONE&&ctx.request_app==&app_image&&picker_transparent==!!mode);}
  assert(picker_requests==2&&!scans);picker_fail=true;ctx.request_app=NULL;
  assert(choose(&ctx,320)==APP_REDRAW_PAGE&&!ctx.request_app&&s_notice[0]);
- puts("PASS: actual wallpaper/transparent/shelf previews retain16 tones with one full-gray output; restore BW even on failure; regular settings stay binary; cancelled navigation skips output; collage selection/ticks do not build or scan synchronously");
+ puts("PASS: actual wallpaper/transparent/shelf previews retain16 tones with one full-gray output; restore BW even on failure; regular settings retain gray outside Fast;scrolls preserve footer and select gray/BW correctly;choice retains navigation; cancelled navigation skips output; collage selection/ticks do not build or scan synchronously");
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s31-settings-preview-') as d:

@@ -126,12 +126,11 @@ bool ui_click_feedback_press(uint8_t *fb, int x, int y, EpdRect *area) {
         int cx = r.x + r.width / 2, cy = r.y + r.height / 2;
         if (s_active.kind == UI_CLICK_BACK || s_active.kind == UI_CLICK_BACK_SMALL) {
             epd_fill_rect(r, s_pixels[0], fb);
-            // 返回图标包含完整圆环；按压只增加圆内底色，不另画圆环或移动题头按钮。
-            // The icon includes its ring; press tint stays inside without another outline or shifted header geometry.
             bool small=s_active.kind==UI_CLICK_BACK_SMALL;
-            int diameter=small?40:44,offset=small?0:1;
-            ui_fill_round_rect(fb,(EpdRect){cx-diameter/2,cy-diameter/2+offset,diameter,diameter},diameter/2,0xd0);
-            ui_draw_icon(fb,cx,cy+offset,small?48:52,s_active.icon,UI_GRAY_BLACK);
+            const bool arrow=s_active.icon==UI_ICON_ARROW_LEFT;
+            int diameter=small?40:44,offset=arrow||small?0:1;
+            if(!arrow)ui_fill_round_rect(fb,(EpdRect){cx-diameter/2,cy-diameter/2+offset,diameter,diameter},diameter/2,0xd0);
+            ui_draw_icon(fb,cx,cy+offset,arrow?(small?50:54):small?48:52,s_active.icon,UI_GRAY_BLACK);
             if (app_settings_main_fast_refresh()) ui_image_bw_rect(fb, r);
         } else {
             // 底栏始终保留原灰底，不把整个按压缓存转成黑白点阵。

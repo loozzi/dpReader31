@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+/* User revision2026-11-13: S31 choices share the darker flat settings material; keep geometry, pagination and cancellation. */
 #include "ui_choice.h"
 #include <stdio.h>
 #include <string.h>
@@ -44,17 +45,32 @@ void ui_choice_draw(const ui_choice_t *c,uint8_t *fb,ui_choice_label_fn label) {
     if(!c->open)return;
     ui_clear_page(fb);ui_text_set_system_scale(true);
     EpdRect r=ui_choice_box();
-    ui_fill_round_rect(fb,r,24,UI_GRAY_WHITE);ui_draw_control_frame(fb,r,24,UI_GRAY_BLACK);
+    ui_fill_round_rect(fb,r,24,UI_GRAY_WHITE);
+#if !DPREADER_BOARD_METALIO47
+    ui_draw_control_frame(fb,r,24,UI_GRAY_BLACK);
+#endif
     ui_text_box(fb,(EpdRect){r.x+24,r.y+18,r.width-110,70},27,c->title,EPD_DRAW_ALIGN_LEFT,false);
     EpdRect close=choice_close();ui_text_box(fb,close,25,"×",EPD_DRAW_ALIGN_CENTER,false);
     for(int i=0;i<ui_choice_slots()&&c->start+i<c->count;i++){
         int index=c->start+i;EpdRect item=ui_choice_item(i);bool active=index==c->current;
-        ui_fill_round_rect(fb,item,16,active?UI_GRAY_BLACK:UI_GRAY_WHITE);ui_draw_control_frame(fb,item,16,UI_GRAY_BLACK);
         char text[96];label(c->kind,index,text,sizeof(text));
+#if DPREADER_BOARD_METALIO47
+        ui_draw_soft_card(fb,item,16,active);
+        EpdRect caption=ui_inset_rect(item,10);caption.width-=16;
+        ui_text_box(fb,caption,23,text,EPD_DRAW_ALIGN_CENTER,false);
+        if(active)epd_fill_circle(item.x+item.width-14,item.y+14,4,UI_GRAY_BLACK,fb);
+#else
+        ui_fill_round_rect(fb,item,16,active?UI_GRAY_BLACK:UI_GRAY_WHITE);ui_draw_control_frame(fb,item,16,UI_GRAY_BLACK);
         ui_text_box(fb,ui_inset_rect(item,10),23,text,EPD_DRAW_ALIGN_CENTER,active);
+#endif
     }
     for(int n=0;n<2;n++){
-        EpdRect b=choice_page_button(n);ui_draw_control_frame(fb,b,14,UI_GRAY_BLACK);
+        EpdRect b=choice_page_button(n);
+#if DPREADER_BOARD_METALIO47
+        ui_draw_soft_card(fb,b,14,false);
+#else
+        ui_draw_control_frame(fb,b,14,UI_GRAY_BLACK);
+#endif
         ui_text_box(fb,b,23,n?"Sau":"Trước",EPD_DRAW_ALIGN_CENTER,false);
     }
     char page[40];snprintf(page,sizeof(page),"%d / %d",c->start/ui_choice_slots()+1,(c->count+ui_choice_slots()-1)/ui_choice_slots());

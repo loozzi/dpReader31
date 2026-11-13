@@ -190,10 +190,9 @@ bool ui_nav_refresh_power(uint8_t *fb) {
 }
 
 void ui_nav_back(uint8_t *fb, int x, int y) {
-    ui_click_feedback_register(fb,(EpdRect){x-10,y+3,64,64},UI_CLICK_BACK_SMALL,UI_ICON_ANIMATE_CIRCLE_CHEVRON_LEFT);
-    // 24px原画以48px输出，圆外径约44px，中心与触控区域保持原位。
-    // Render the original 24px artwork at 48px for an approximately 44px circle without changing center or hits.
-    ui_draw_icon(fb,x+22,y+35,UI_NAV_BACK_ICON_PX,UI_ICON_ANIMATE_CIRCLE_CHEVRON_LEFT,0x30);
+    // User revision2026-11-13: plain left arrow, retaining the original hit area.
+    ui_click_feedback_register(fb,(EpdRect){x-10,y+3,64,64},UI_CLICK_BACK_SMALL,UI_ICON_ARROW_LEFT);
+    ui_draw_icon(fb,x+22,y+35,UI_NAV_BACK_ICON_PX,UI_ICON_ARROW_LEFT,0x30);
 }
 
 void ui_nav_wifi_icon(uint8_t *fb, int cx, int cy, int size, uint8_t gray) {

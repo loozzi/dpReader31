@@ -234,8 +234,7 @@ static ui_online_fonts_t s_online_fonts;
 // 阅读工具栏图标盒边长；行内图标在 1096..1216 的工具条里以 1138 为中心。
 // Reader toolbar icon box; the row centres on y=1138 inside the 1096..1216 bar.
 #define READER_TOOL_ICON_PX 40
-// 二级面板返回键里的箭头边长；圆底半径 24，原来的箭头是 20 像素高。
-// Chevron box inside a secondary panel's back control; the old arrow was 20 px tall.
+// Plain-arrow box inside a secondary panel back control.
 #define READER_SHEET_BACK_PX 52
 
 #define BOOK_ROWS 13
@@ -2402,11 +2401,10 @@ static void draw_sheet(uint8_t* fb, int top, const char* title) {
     ui_text_box(fb,(EpdRect){110,top+26,464,66},30,title,EPD_DRAW_ALIGN_CENTER,false);
 }
 
-// 二级面板共用 AnimateIcons circle-chevron-left，含圆环与箭头，避免叠加手画框线。
-// Secondary panels share the complete AnimateIcons circle-chevron-left without an extra hand-drawn ring.
+// Secondary panels share the same unframed back arrow as system pages.
 static void draw_sheet_back(uint8_t* fb, int top) {
-    ui_click_feedback_register(fb,(EpdRect){32,top+25,64,64},UI_CLICK_BACK,UI_ICON_ANIMATE_CIRCLE_CHEVRON_LEFT);
-    ui_draw_icon(fb,64,top+57,READER_SHEET_BACK_PX,UI_ICON_ANIMATE_CIRCLE_CHEVRON_LEFT,0x30);
+    ui_click_feedback_register(fb,(EpdRect){32,top+25,64,64},UI_CLICK_BACK,UI_ICON_ARROW_LEFT);
+    ui_draw_icon(fb,64,top+57,READER_SHEET_BACK_PX,UI_ICON_ARROW_LEFT,0x30);
 }
 
 static void draw_pill_slider(uint8_t* fb, EpdRect r, const char* left, const char* right,

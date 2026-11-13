@@ -101,6 +101,7 @@ COMMON_ICONS = (
     "pencil",
     "save",
     "x",                 # 电源弹窗·取消 / power dialog, cancel
+    "arrow-left",        # Shared back without a surrounding circle
 )
 
 def icons_for_board(board):
@@ -534,7 +535,8 @@ def render_icon(name: str) -> Image.Image:
 
 def pack_4bpp(image: Image.Image) -> list[int]:
     """8 位 alpha 量化为 4bpp：高四位是左像素，低四位是右像素。0=透明，15=实心。"""
-    values = [max(0, min(15, round(v * 15 / 255))) for v in image.get_flattened_data()]
+    pixels = image.get_flattened_data() if hasattr(image, "get_flattened_data") else image.getdata()
+    values = [max(0, min(15, round(v * 15 / 255))) for v in pixels]
     return [(values[i] << 4) | values[i + 1] for i in range(0, len(values), 2)]
 
 

@@ -25,6 +25,8 @@ static void ui_clear_page(uint8_t *p){assert(p);}
 static void ui_text_set_system_scale(bool on){assert(on);}
 static void ui_fill_round_rect(uint8_t *p,EpdRect r,int radius,int ink){(void)p;(void)radius;(void)ink;bounds(r);}
 static void ui_draw_control_frame(uint8_t *p,EpdRect r,int radius,int ink){(void)p;(void)radius;(void)ink;bounds(r);}
+static void ui_draw_soft_card(uint8_t *p,EpdRect r,int radius,bool active){(void)p;(void)radius;(void)active;bounds(r);}
+static void epd_fill_circle(int x,int y,int radius,int ink,uint8_t *fb){(void)ink;assert(fb&&radius==4);bounds((EpdRect){x-radius,y-radius,2*radius,2*radius});++selected;}
 static EpdRect ui_inset_rect(EpdRect r,int n){return (EpdRect){r.x+n,r.y+n,r.width-2*n,r.height-2*n};}
 static void ui_text_box(uint8_t *p,EpdRect r,int px,const char *text,int align,bool inverse){(void)p;(void)px;(void)align;assert(text);bounds(r);if(inverse)++selected;}
 '''
@@ -54,5 +56,6 @@ int main(void){
 '''
 with tempfile.TemporaryDirectory() as d:
  p=Path(d);(p/'test.c').write_text(prefix+h+s+tests)
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
- subprocess.run([str(p/'test')],check=True)
+ for board in (0,1):
+  subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function',f'-DDPREADER_BOARD_METALIO47={board}','-fsanitize=undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
+  subprocess.run([str(p/'test')],check=True)

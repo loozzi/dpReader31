@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: LicenseRef-Kiikoread-Personal-Study-1.0
  * 中文：五行字体名/文件大小/下载按钮，状态变化有界局刷，不展示逐项授权信息。
  * English: Five compact name/size/download rows; bounded status refresh, without per-item license chrome.
+ * User revision2026-11-13: use flat gray cards for nested settings/reading font downloads; preserve worker ownership, progress bounds and confirmation.
  */
 #include "ui_online_fonts.h"
 #include <stdio.h>
@@ -11,6 +12,7 @@
 #include "ui_nav.h"
 #include "ui_font.h"
 #include "ttf_font.h"
+#include "settings.h"
 
 static EpdRect back_rect(void){return (EpdRect){30,77,154,72};}
 static EpdRect row_rect(unsigned i){return (EpdRect){36,242+(int)i*120,612,120};}
@@ -40,20 +42,18 @@ void ui_online_fonts_draw(const ui_online_fonts_t *ui,uint8_t *fb){
     ui_text_set_system_scale(true);ui_clear_page(fb);ui_nav_status(fb);
     ui_nav_back(fb,36,79);
     ui_text_box(fb,(EpdRect){188,79,308,70},34,"Phông trực tuyến",EPD_DRAW_ALIGN_CENTER,false);
-    ui_hairline(fb,176,36,612,0x70);
     ui_text_box(fb,(EpdRect){36,192,612,40},21,ui->reading?"Dùng cho phông đọc sách":"Dùng cho phông hệ thống",EPD_DRAW_ALIGN_LEFT,false);
     for(unsigned i=0;i<ONLINE_FONT_COUNT;++i){
         const online_font_item_t *item=online_font_item(i);EpdRect r=row_rect(i),button=download_rect(i);
+        ui_draw_soft_card(fb,(EpdRect){r.x,r.y+4,r.width,r.height-8},18,false);
         ui_text_box(fb,(EpdRect){r.x,r.y+26,382,68},26,font_label(item),EPD_DRAW_ALIGN_LEFT,false);
         char size[24];snprintf(size,sizeof(size),"%.1fMB",(double)item->size/1000000.0);
         ui_text_box(fb,(EpdRect){426,r.y+26,102,68},20,size,EPD_DRAW_ALIGN_RIGHT,false);
         bool active=ui->status.busy&&ui->status.item==i;
         const char *label=ui->installed[i]?"Đã tải":active?"Hủy":"Tải về";
         bool enabled=active||(!ui->installed[i]&&!ui->status.busy);
-        ui_fill_round_rect(fb,button,16,enabled?UI_GRAY_BLACK:UI_GRAY_WHITE);
-        if(!enabled)ui_draw_control_frame(fb,button,16,UI_GRAY_BLACK);
-        ui_text_box(fb,ui_inset_rect(button,4),24,label,EPD_DRAW_ALIGN_CENTER,enabled);
-        ui_hairline(fb,r.y+r.height-1,r.x,r.width,0x80);
+        ui_draw_soft_card(fb,button,16,enabled);
+        ui_text_box(fb,ui_inset_rect(button,4),24,label,EPD_DRAW_ALIGN_CENTER,false);
     }
     EpdRect status=status_rect();
     if(ui->status.message[0])ui_text_box(fb,(EpdRect){status.x,status.y,status.width,92},22,ui->status.message,EPD_DRAW_ALIGN_LEFT,false);
@@ -63,14 +63,14 @@ void ui_online_fonts_draw(const ui_online_fonts_t *ui,uint8_t *fb){
         ui_fill_rect_fast((EpdRect){142,status.y+112,506,8},UI_GRAY_WHITE,fb);
         ui_fill_rect_fast((EpdRect){142,status.y+112,(int)(506*p/100),8},UI_GRAY_BLACK,fb);
     }
-    ui_draw_control_frame(fb,return_rect(),18,UI_GRAY_BLACK);
+    ui_draw_soft_card(fb,return_rect(),18,false);
     ui_text_box(fb,return_rect(),27,"Quay lại danh sách phông",EPD_DRAW_ALIGN_CENTER,false);
     if(ui->confirm_cancel){
-        EpdRect dialog={48,438,588,354};ui_fill_round_rect(fb,dialog,24,UI_GRAY_WHITE);ui_draw_control_frame(fb,dialog,24,UI_GRAY_BLACK);
+        EpdRect dialog={48,438,588,354};ui_fill_round_rect(fb,dialog,24,UI_GRAY_WHITE);
         ui_text_box(fb,(EpdRect){72,466,540,78},32,"Hủy tải xuống?",EPD_DRAW_ALIGN_CENTER,false);
         ui_text_box(fb,(EpdRect){76,554,532,100},24,"Giữ nguyên phông hiện tại",EPD_DRAW_ALIGN_CENTER,false);
-        for(int yes=0;yes<2;++yes){EpdRect b=cancel_button(yes);ui_fill_round_rect(fb,b,16,yes?UI_GRAY_BLACK:UI_GRAY_WHITE);
-            ui_draw_control_frame(fb,b,16,UI_GRAY_BLACK);ui_text_box(fb,b,25,yes?"Hủy tải":"Tiếp tục tải",EPD_DRAW_ALIGN_CENTER,yes);}
+        for(int yes=0;yes<2;++yes){EpdRect b=cancel_button(yes);ui_draw_soft_card(fb,b,16,yes);
+            ui_text_box(fb,b,25,yes?"Hủy tải":"Tiếp tục tải",EPD_DRAW_ALIGN_CENTER,false);}
     }
     ui_text_set_system_scale(false);
 }
@@ -112,8 +112,11 @@ app_redraw_t ui_online_fonts_tick(ui_online_fonts_t *ui,int64_t now_ms){
 bool ui_online_fonts_present(ui_online_fonts_t *ui,app_ctx_t *ctx,app_redraw_t redraw){
     if(redraw==APP_REDRAW_NONE||redraw==APP_REDRAW_DONE)return true;
     display_main_transition_cancel();ui_online_fonts_draw(ui,ctx->fb);
+    if(app_settings_main_fast_refresh())display_monochrome_frame(ctx->fb);
     EpdRect area=redraw==APP_REDRAW_AREA?status_rect():(EpdRect){0,0,UI_LOCK_WIDTH,UI_LOCK_HEIGHT};
     guard_draw_result(ctx->hl,redraw==APP_REDRAW_FULL?update_display_full(ctx->hl):
-        update_display_area_diff_with(ctx->hl,display_main_bw_waveform(),MODE_DU,area));
+        app_settings_main_fast_refresh()
+            ? update_display_area_diff_with(ctx->hl,display_main_bw_waveform(),MODE_DU,area)
+            : update_display_gray_transition(ctx->hl,area));
     return true;
 }

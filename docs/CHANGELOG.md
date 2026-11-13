@@ -1,14 +1,12 @@
 ## dpReader 1.4.6-vn · Chưa phát hành
 
-- Làm mới bốn trang chính theo mẫu thẻ xám phẳng: ngày trên Trang chủ, các lối tắt riêng, danh sách tệp thoáng và nhóm Cài đặt bo góc; thanh điều hướng nền trắng chỉ tô mục đang chọn.
-- Kiểu Tủ sách mặc định chuyển từ Acrylic sang lưới tối giản 3×2, có tên, định dạng và dung lượng sách; giữ kiểu kệ tối màu và danh sách. Refresh thường giữ nền thẻ xám, Fast tiếp tục tối ưu đen trắng.
-
-- Thanh điều hướng dưới cùng chuyển sang capsule nổi màu kính mờ, với nền riêng cho mục đang chọn; giữ nguyên bốn mục và vùng chạm, hỗ trợ giao diện hai mục.
-- Cập nhật nền chọn bằng refresh xám cục bộ; phản hồi nhấn lấy lại nền mới sau khi chuyển trang.
-- Giữ màu xám của thanh nổi ở mọi mức tương phản giao diện 100–140%, sửa nền thanh và mục chọn bị trắng ở mức mặc định 130%.
-- Tăng độ đậm của nền thanh, nút đang chọn và bóng đổ để dễ phân biệt trên màn hình e-ink.
-- Menu vuốt lên khi đọc sách dùng cùng capsule nổi xám đậm, giữ sáu thao tác và làm nổi dấu trang đã lưu.
-- Sửa thanh nổi bị lưu hình khi chuyển sang Tệp tin/Cài đặt hoặc vuốt trở về: cập nhật đủ chiều cao thanh bằng refresh xám, tách khỏi nội dung đen trắng.
+- Làm mới bốn trang chính theo mẫu thẻ xám phẳng: ngày trên Trang chủ, lối tắt riêng, danh sách tệp thoáng và nhóm Cài đặt bo góc; thanh điều hướng nền trắng chỉ tô mục đang chọn.
+- Tăng độ đậm nền thẻ và mục chọn, giữ đúng màu ở tương phản giao diện100–140%. Chế độ Thường/Sóng nước giữ nền xám của Tệp tin, Cài đặt và WiFi; Fast giữ đường đen trắng.
+- Nút quay lại dùng mũi tên trái không có vòng tròn, kể cả khi nhấn; giữ nguyên vùng chạm.
+- Đồng bộ các trang Cài đặt bên trong: hàng tùy chọn, nút, hộp chọn giá trị và trang chọn mạng WiFi cùng kiểu thẻ xám; giữ cuộn, vùng chạm, trạng thái chọn và thao tác quay lại.
+- Kiểu Tủ sách mặc định chuyển từ Acrylic sang lưới tối giản3×2, có tên, định dạng và dung lượng; giữ kiểu kệ tối màu và danh sách.
+- Menu vuốt lên khi đọc sách dùng capsule xám đậm, giữ sáu thao tác và làm nổi dấu trang đã lưu.
+- Sửa dư ảnh khi chuyển tab hoặc vuốt trở về bằng refresh xám đầy đủ thanh dưới cùng; phản hồi nhấn lấy lại nền mới sau khi chuyển trang.
 
 
 ## dpReader 1.4.5-vn / 1.4.5-love-vn · 2026-11-12

@@ -8,7 +8,7 @@ ROOT=Path(__file__).resolve().parents[1]
 source=ROOT/'main/ui/ui_online_fonts.c'
 functions=['back_rect','row_rect','download_rect','status_rect','return_rect','cancel_button',
            'ui_online_fonts_entry_rect','ui_online_fonts_open','ui_online_fonts_close','percent',
-           'ui_online_fonts_gesture','ui_online_fonts_tick']
+           'ui_online_fonts_gesture','ui_online_fonts_tick','ui_online_fonts_present']
 code=r'''
 #include <assert.h>
 #include <stdbool.h>
@@ -28,6 +28,22 @@ void online_font_status(online_font_status_t *out){*out=live;}
 bool online_font_installed(unsigned i){assert(i<5);return installed[i];}
 esp_err_t online_font_start(unsigned i){assert(i<5);++starts;live=(online_font_status_t){.phase=ONLINE_FONT_CONNECTING,.item=i,.total=100,.revision=live.revision+1,.busy=true};return ESP_OK;}
 void online_font_cancel_join(void){++joins;live.busy=false;live.phase=ONLINE_FONT_CANCELLED;++live.revision;}
+'''
+code+=r'''
+#define UI_LOCK_WIDTH 684
+#define UI_LOCK_HEIGHT 1216
+#define MODE_DU 1
+typedef struct{uint8_t *fb;void *hl;}app_ctx_t;
+static bool fast;static int gray_push,bw_push,full_push;static EpdRect pushed;
+static bool app_settings_main_fast_refresh(void){return fast;}
+static void display_main_transition_cancel(void){}
+static void ui_online_fonts_draw(ui_online_fonts_t *ui,uint8_t *fb){(void)ui;memset(fb,221,16);}
+static void display_monochrome_frame(uint8_t *fb){memset(fb,255,16);}
+static void guard_draw_result(void *hl,int e){(void)hl;assert(e==0);}
+static const int *display_main_bw_waveform(void){static int wave;return &wave;}
+static int update_display_full(void *hl){(void)hl;++full_push;return 0;}
+static int update_display_gray_transition(void *hl,EpdRect r){(void)hl;assert(!fast);pushed=r;++gray_push;return 0;}
+static int update_display_area_diff_with(void *hl,const int *wave,int mode,EpdRect r){(void)hl;assert(fast&&wave==display_main_bw_waveform()&&mode==MODE_DU);pushed=r;++bw_push;return 0;}
 '''
 code+='\n'.join(function(name,source) for name in functions)
 code+=r'''
@@ -54,7 +70,17 @@ int main(void){
   starts=0;event=tap(b);assert(ui_online_fonts_gesture(&ui,&event)==APP_REDRAW_NONE&&!starts);
   ui_online_fonts_close(&ui);assert(ui.closed);
  }
- puts("PASS: five shared row/button bounds, both entries, cancelled/outside releases, single-worker admission, return/cancel/join, downloaded guard and250ms/percent progress throttle (ASan/UBSan)");
+ ui_online_fonts_t ui={0};uint8_t fb[16];app_ctx_t ctx={fb,NULL};
+ for(int mode=0;mode<3;++mode)for(int redraw=APP_REDRAW_AREA;redraw<=APP_REDRAW_FULL;++redraw){
+  fast=mode==1;int g=gray_push,b=bw_push,f=full_push;
+  assert(ui_online_fonts_present(&ui,&ctx,redraw));
+  assert(full_push==f+(redraw==APP_REDRAW_FULL));
+  assert(gray_push==g+(redraw!=APP_REDRAW_FULL&&!fast));
+  assert(bw_push==b+(redraw!=APP_REDRAW_FULL&&fast));
+  if(redraw==APP_REDRAW_AREA)assert(pushed.y==866&&pushed.height==176);
+  for(int i=0;i<16;++i)assert(fb[i]==(fast?255:221));
+ }
+ puts("PASS: online-font gray/Fast policy and bounded progress presentation; five shared row/button bounds, both entries, cancelled/outside releases, single-worker admission, return/cancel/join, downloaded guard and250ms/percent progress throttle (ASan/UBSan)");
 }
 '''
 with tempfile.TemporaryDirectory() as d:

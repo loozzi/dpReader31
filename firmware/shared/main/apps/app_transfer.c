@@ -4,6 +4,7 @@
  *
  * 传书页负责两种接入模式生命周期、书源注入与状态展示；HTTP和文件接收属于独立组件。
  * Transfer page owns both network modes, storage injection and status; the component receives files.
+ * User revision2026-11-13: WiFi provisioning uses white backing and flat gray cards/buttons; normal/Water retain grays, Fast keeps binary output and transfer progress stays on its existing bounded path.
  *
  * 冻结：按用户双模式要求提供热点与已有WiFi；离开传书时停服，配网后已连接的 STA 保持在线；深睡/断电会中断传输。
  * render只画快照；内置存储单文件上限由book_store提供，不格式化TF卡。
@@ -276,13 +277,11 @@ static EpdRect method_control_rect(int id) {
 // S05 keeps method selection separate from the service details shown on the next page.
 static void draw_methods(uint8_t *fb) {
     ui_clear_page(fb);
-    ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, transfer_content_end()}, 0xe0, fb);
+    ui_fill_rect_fast((EpdRect){0,0,UI_LOCK_WIDTH,transfer_content_end()},UI_GRAY_WHITE,fb);
     transfer_header(fb, "Truyền WiFi / Điểm phát", NULL);
     ui_text(fb, 42, 180, 21, "Chọn phương thức", EPD_DRAW_ALIGN_LEFT, false);
     EpdRect card = {36, 224, 612, 224};
-    ui_fill_round_rect(fb, card, 24, UI_GRAY_WHITE);
-    ui_draw_round_rect(fb, card, 24, 0x60);
-    ui_draw_round_rect(fb, (EpdRect){37, 225, 610, 222}, 23, 0x60);
+    ui_fill_round_rect(fb,card,24,UI_GRAY_WHITE);
     static const char *titles[] = {"Truyền qua WiFi", "Điểm phát sóng"};
     static const char *details[] = {
         "Kết nối cùng mạng WiFi với điện thoại hoặc máy tính",
@@ -290,8 +289,7 @@ static void draw_methods(uint8_t *fb) {
     };
     for (int i = 0; i < 2; ++i) {
         EpdRect row = method_control_rect(i);
-        if (s_pressed == i) ui_draw_pressed_round_rect(fb, row, 0);
-        if (i) ui_fill_rect_fast((EpdRect){68, row.y, 548, 2}, 0x80, fb);
+        ui_draw_soft_card(fb,(EpdRect){row.x,row.y+4,row.width,row.height-8},20,s_pressed==i);
         int cy = row.y + row.height / 2;
         if (i == 0) ui_nav_wifi_icon(fb, 72, cy, 30, 0x6a);
         else if (i == 1) ui_draw_icon(fb, 72, cy, 48, UI_ICON_RADIO_TOWER, 0x6a);
@@ -346,25 +344,19 @@ static EpdRect password_control_rect(int id) {
 }
 
 static void provisioning_button(uint8_t* fb, EpdRect rect, const char* text, int id) {
-    if (s_pressed == id) ui_draw_pressed_round_rect(fb, rect, UI_BTN_RADIUS);
-    ui_draw_button(fb, rect, text, false);
-}
-
-static void network_border(uint8_t *fb, EpdRect rect, int radius) {
-    ui_draw_round_rect(fb, rect, radius, 0x50);
-    ui_draw_round_rect(fb, (EpdRect){rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2}, radius - 1, 0x50);
+    ui_draw_soft_card(fb,rect,18,s_pressed==id);
+    ui_text_box(fb,ui_inset_rect(rect,12),UI_PX_BTN,text,EPD_DRAW_ALIGN_CENTER,false);
 }
 
 static void network_button(uint8_t *fb, int id, const char *label, bool dark) {
     EpdRect rect = network_control_rect(id);
-    ui_fill_round_rect(fb, rect, 16, s_pressed == id ? 0xb0 : dark ? UI_GRAY_BLACK : UI_GRAY_WHITE);
-    if (!dark) network_border(fb, rect, 16);
-    ui_text_box(fb,ui_inset_rect(rect,10),24,label,EPD_DRAW_ALIGN_CENTER,dark&&s_pressed!=id);
+    ui_draw_soft_card(fb,rect,16,dark||s_pressed==id);
+    ui_text_box(fb,ui_inset_rect(rect,10),24,label,EPD_DRAW_ALIGN_CENTER,false);
 }
 
 static void draw_networks(uint8_t* fb) {
     ui_clear_page(fb);
-    ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, transfer_content_end()}, 0xe0, fb);
+    ui_fill_rect_fast((EpdRect){0,0,UI_LOCK_WIDTH,transfer_content_end()},UI_GRAY_WHITE,fb);
     if (s_forget_confirm) {
         transfer_header(fb, "Quên các mạng WiFi", "Xóa toàn bộ hồ sơ WiFi đã lưu");
         ui_text(fb, UI_MARGIN, 450, UI_PX_CAPTION, s_network_message, EPD_DRAW_ALIGN_LEFT, false);
@@ -376,8 +368,7 @@ static void draw_networks(uint8_t* fb) {
     transfer_header(fb, "Mạng WiFi", NULL);
     ui_text(fb, 42, 182, 24, "Mạng hiện tại", EPD_DRAW_ALIGN_LEFT, false);
     EpdRect current = {36, 224, 612, 154};
-    ui_fill_round_rect(fb, current, 22, UI_GRAY_WHITE);
-    network_border(fb, current, 22);
+    ui_draw_soft_card(fb,current,22,false);
     if (s_saved_configured) {
         char saved[40];
         const char *ssid = s_session_started && s_status.wifi_ssid[0] ? s_status.wifi_ssid : s_saved_ssid;
@@ -420,8 +411,7 @@ static void draw_networks(uint8_t* fb) {
         if (index >= s_network_count) break;
         const read_pico_transfer_network_t* network = &s_networks[index];
         EpdRect rect = network_control_rect(row);
-        if (s_pressed == row) ui_draw_pressed_round_rect(fb, rect, 0);
-        if (row) ui_fill_rect_fast((EpdRect){64, rect.y, 556, 2}, 0x70, fb);
+        ui_draw_soft_card(fb,(EpdRect){rect.x,rect.y+4,rect.width,rect.height-8},18,s_pressed==row);
         char name[33], detail[64];
         snprintf(name, sizeof(name), "%s", network->ssid);
         fit_label(name, 28, 520);
@@ -431,7 +421,6 @@ static void draw_networks(uint8_t* fb) {
         ui_text_box(fb,(EpdRect){64,rect.y+54,520,34},21,detail,EPD_DRAW_ALIGN_LEFT,false);
         ui_text_vc(fb, 615, rect.y + 47, 27, "›", EPD_DRAW_ALIGN_CENTER, false);
     }
-    network_border(fb, list, 22);
     if (s_network_count > NETWORK_ROWS) {
         network_button(fb, 7, "‹", false);
         network_button(fb, 9, "›", false);
@@ -745,6 +734,13 @@ static EpdRect progress_rect(void) {
     EpdRect r = status_rect();
     return (EpdRect){r.x + 24, r.y + 18, r.width - 48, 150};
 }
+static void progress_binary(uint8_t *fb) {
+    const EpdRect r=progress_rect();
+    // Keep the bounded DU upload path binary without changing other page cards.
+    for(int y=r.y;y<r.y+r.height;++y)
+        for(int x=r.x;x<r.x+r.width;++x)
+            epd_draw_pixel(x,y,(ui_read_pixel(fb,x,y)&8)?UI_GRAY_WHITE:UI_GRAY_BLACK,fb);
+}
 #endif
 static uint64_t free_bytes(void* arg) { return book_store_free_bytes(arg); }
 
@@ -899,7 +895,7 @@ static void render_content(app_ctx_t* ctx, uint8_t* fb) {
 static void render(app_ctx_t *ctx,uint8_t *fb) {
     render_content(ctx,fb);
 #if DPREADER_BOARD_METALIO47
-    display_monochrome_content(fb);
+    if(app_settings_main_fast_refresh())display_monochrome_content(fb);
 #endif
     transfer_navigation(fb,s_wifi_settings_only?3:2);
 }
@@ -1177,7 +1173,7 @@ static app_redraw_t on_tick(app_ctx_t* ctx) {
         if (!changed) return APP_REDRAW_NONE;
         s_progress_pending = true;
         draw_status(ctx->fb);
-        display_monochrome_content(ctx->fb);
+        progress_binary(ctx->fb);
         s_area = progress_rect();
         return APP_REDRAW_AREA;
     }
@@ -1381,6 +1377,12 @@ static bool present(app_ctx_t* ctx, app_redraw_t redraw) {
             s_input_layout ? MODE_GL16 : MODE_DU, s_area));
         return true;
     }
+#if DPREADER_BOARD_METALIO47
+    if(!app_settings_main_fast_refresh()&&(s_view==TRANSFER_NETWORKS||s_view==TRANSFER_METHODS)) {
+        guard_draw_result(ctx->hl,update_display_gray_transition(ctx->hl,s_area));
+        s_settle=false;return true;
+    }
+#endif
     guard_draw_result(ctx->hl, update_display_area_with(ctx->hl, s_settle ? &E0470_WAVEFORM : &E0470_FOLLOW_WAVEFORM,
                       s_settle ? MODE_GL16 : MODE_DU, s_area));
     s_settle = false;
