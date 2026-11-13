@@ -4,6 +4,7 @@
  *
  * S31用户最新修订：系统内容黑白、根页底栏保留灰底；根页遵循水波纹模式，子页只侧滑返回沿LTR动画。
  * Latest S31 revision: BW system content retains gray root navigation; roots honor water mode and children animate LTR only on edge return.
+ * Revision 2026-11-13: floating navigation extends below the former marker; system roots and edge returns present the entire footer separately in grayscale.
  * 事件循环。只做和页面无关的事：读触摸并去抖、三个实体键与菜单把手的路由、切页
  * 时调 on_exit/on_enter、按回调返回值决定怎么刷屏、电源键锁屏、SD 卡上的字体延迟
  * 加载。页面自己的状态和刷新节奏都在 main/apps/ 各自的文件里。
@@ -495,14 +496,20 @@ static void app_present_impl(app_ctx_t* ctx, const app_desc_t* app, app_redraw_t
         if (app->render) app->render(ctx, ctx->fb);
         // 动画和高层区域都使用旋转后逻辑坐标；物理全屏会触发裁剪错误与整屏恢复。
         // Animation/high-level areas use rotated logical coordinates; a physical full screen causes crop failure and full recovery.
+        const bool separate_navigation=navigation_page_ready(ctx,app);
         const EpdRect screen={0,0,epd_rotated_display_width(),
-            !s_present_all_rows && navigation_page_ready(ctx,app)?UI_NAV_MARKER_SCAN_END:epd_rotated_display_height()};
+            separate_navigation?UI_NAV_REFRESH_END:epd_rotated_display_height()};
         e0470_turn_dir_t direction = returning ? E0470_TURN_LTR : E0470_TURN_RTL;
         if (s_reader_to_home_water) direction = E0470_TURN_TTB;
         if (s_pop_menu_water) direction = E0470_TURN_BTT;
         result = redraw == APP_REDRAW_FULL ? update_display_full(ctx->hl) : returning || root_water
             ? update_display_water_turn(ctx->hl, screen, direction)
             : update_display_area_diff_with(ctx->hl,display_main_bw_waveform(),MODE_DU,screen);
+        // The old marker ended at1120; pills, labels and shadows extend to the bottom.
+        // Keep them out of the binary body scan and restore every changed gray pixel.
+        if(redraw!=APP_REDRAW_FULL && separate_navigation && result==EPD_DRAW_SUCCESS)
+            result=update_display_gray_transition(ctx->hl,(EpdRect){0,UI_NAV_REFRESH_END,
+                epd_rotated_display_width(),epd_rotated_display_height()-UI_NAV_REFRESH_END});
         if(redraw==APP_REDRAW_PAGE)display_page_prepare_end(prepared);
         guard_draw_result(ctx->hl, result);
         main_present_finished(ctx, app, redraw);

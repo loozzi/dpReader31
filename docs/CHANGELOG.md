@@ -4,6 +4,8 @@
 - Cập nhật nền chọn bằng refresh xám cục bộ; phản hồi nhấn lấy lại nền mới sau khi chuyển trang.
 - Giữ màu xám của thanh nổi ở mọi mức tương phản giao diện 100–140%, sửa nền thanh và mục chọn bị trắng ở mức mặc định 130%.
 - Tăng độ đậm của nền thanh, nút đang chọn và bóng đổ để dễ phân biệt trên màn hình e-ink.
+- Menu vuốt lên khi đọc sách dùng cùng capsule nổi xám đậm, giữ sáu thao tác và làm nổi dấu trang đã lưu.
+- Sửa thanh nổi bị lưu hình khi chuyển sang Tệp tin/Cài đặt hoặc vuốt trở về: cập nhật đủ chiều cao thanh bằng refresh xám, tách khỏi nội dung đen trắng.
 
 
 ## dpReader 1.4.5-vn / 1.4.5-love-vn · 2026-11-12

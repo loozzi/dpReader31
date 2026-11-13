@@ -7,6 +7,7 @@ mkdir -p build/book-tests
 link_gc=(-Wl,--gc-sections)
 if [[ "$(uname -s)" == "Darwin" ]]; then link_gc=(-Wl,-dead_strip); fi
 python3 tools/floating_navigation_host_test.py
+python3 tools/floating_system_present_host_test.py
 cc -std=c11 -Wall -Wextra -Werror -g -fsanitize=address,undefined \
     -Imain -Imain/app \
     -Itools/waveform_host_stubs -Icomponents/epdiy/include -Icomponents/epdiy/src \

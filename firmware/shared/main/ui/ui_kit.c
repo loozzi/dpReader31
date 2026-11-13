@@ -777,6 +777,20 @@ void ui_fill_round_rect(
     );
 }
 
+// 中文：预补偿装饰灰阶，文字与图标继续使用用户对比度。/ English: Precompensate material grays while retaining user contrast for text/icons.
+static uint8_t floating_material_ink(uint8_t gray) {
+    const int contrast=app_settings_system_contrast();
+    const int target=(gray&0xf0)+8;
+    return (uint8_t)(128+((target-128)*100+contrast/2)/contrast);
+}
+
+void ui_draw_floating_capsule(uint8_t *fb, EpdRect rect, int radius, bool selected) {
+    if(!selected)
+        ui_fill_round_rect(fb,(EpdRect){rect.x,rect.y+3,rect.width,rect.height},radius,floating_material_ink(0x88));
+    ui_fill_round_rect(fb,rect,radius,floating_material_ink(selected?0x99:0xcc));
+    ui_draw_round_rect(fb,(EpdRect){rect.x+1,rect.y+1,rect.width-2,rect.height-2},radius>0?radius-1:0,UI_GRAY_WHITE);
+}
+
 bool ui_rect_hit(EpdRect rect, uint16_t x, uint16_t y) {
     return (int)x >= rect.x && (int)x < rect.x + rect.width
         && (int)y >= rect.y && (int)y < rect.y + rect.height;

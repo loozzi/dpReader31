@@ -99,6 +99,8 @@
  * User adds default-on reading AA and grouped shelf artwork; upward swipes from the body bottom always open tools independently of tap/key modes.
  * 用户修订：底部上滑固定呼出工具栏，不随按键及翻页模式变化；取消短按或长按必须保留工具栏的限制。
  * User revision: bottom-edge swipes always open tools independently of key/tap modes; short and hold actions no longer require a toolbar mapping.
+ * 用户2026-11-13修订：上滑工具栏与底部导航共用深灰悬浮胶囊，六列命中与局部灰阶输出保持原位。
+ * User revision2026-11-13: swipe-up tools share the darker floating navigation material, retaining six hit columns and existing local-gray presentation.
  * User revision: input refreshes changed regions without repainting headers, covers or body; release lookup caches on exit.
  * Shake is off by default: left/right impulses turn back/forward, suppressing touch and rebound; exit restores the sensor and sleeps it. Render only paints.
  * Prefetch overlaps synchronous output and stops between rows; no font/chapter resources survive presentation.
@@ -3493,6 +3495,28 @@ static EpdRect reader_fast_panel_rect(void) {
     return(EpdRect){0,top,UI_LOCK_WIDTH,UI_LOCK_HEIGHT-top};
 }
 #endif
+// 中文：底部上滑工具栏共用悬浮胶囊；保持原六列热区、图标和文字位置，不处理底页或推屏。
+// English: Bottom-swipe tools share the floating capsule; retain all six hit columns and icon/label positions without body work or presentation.
+static void draw_reader_tools(uint8_t *fb) {
+    ui_fill_rect_fast((EpdRect){0,1096,UI_LOCK_WIDTH,120},UI_GRAY_WHITE,fb);
+#if DPREADER_BOARD_METALIO47
+    ui_draw_floating_capsule(fb,(EpdRect){12,1104,UI_LOCK_WIDTH-24,96},48,false);
+#else
+    ui_hairline(fb,1096,0,UI_LOCK_WIDTH,0x98);
+#endif
+    const char* labels[]={"Mục lục","Đánh dấu","Đồng bộ","Thống kê","Cài đặt đọc","Phông chữ"};
+    for(int i=0;i<BOOK_TOOL_COUNT;++i) {
+        EpdRect rect=tool_rect(i);
+        const int cx=rect.x+rect.width/2;
+        const bool bookmarked=i==1&&bookmark_is_current();
+#if DPREADER_BOARD_METALIO47
+        if(bookmarked)ui_draw_floating_capsule(fb,(EpdRect){rect.x+12,1112,rect.width-24,80},40,true);
+#endif
+        draw_reader_tool_icon(fb,cx,1138,i,bookmarked);
+        ui_text_box(fb,(EpdRect){rect.x+4,1159,rect.width-8,40},20,bookmarked?"Đã lưu dấu":labels[i],EPD_DRAW_ALIGN_CENTER,false);
+    }
+}
+
 static void draw_reader_panel(uint8_t* fb) {
     if (s_reader_panel==READER_PANEL_NONE) return;
 #if DPREADER_BOARD_METALIO47
@@ -3503,16 +3527,7 @@ static void draw_reader_panel(uint8_t* fb) {
 #endif
     ui_text_set_system_scale(true);
     if (s_reader_panel == READER_PANEL_TOOLS) {
-        ui_fill_rect_fast((EpdRect){0, 1096, UI_LOCK_WIDTH, 120}, UI_GRAY_WHITE, fb);
-        ui_hairline(fb, 1096, 0, UI_LOCK_WIDTH, 0x98);
-        const char* labels[] = {"Mục lục", "Đánh dấu", "Đồng bộ", "Thống kê", "Cài đặt đọc", "Phông chữ"};
-        for (int i = 0; i < BOOK_TOOL_COUNT; ++i) {
-            EpdRect rect = tool_rect(i);
-            int cx = rect.x + rect.width / 2;
-            bool bookmarked = i == 1 && bookmark_is_current();
-            draw_reader_tool_icon(fb, cx, 1138, i, bookmarked);
-            ui_text_box(fb,(EpdRect){rect.x+4,1159,rect.width-8,40},20,bookmarked?"Đã lưu dấu":labels[i],EPD_DRAW_ALIGN_CENTER,false);
-        }
+        draw_reader_tools(fb);
     } else if (s_reader_panel == READER_PANEL_FONT_SETTINGS) draw_font_settings(fb);
     else if (s_reader_panel == READER_PANEL_WEIGHT_SETTINGS) draw_weight_settings(fb);
     else if (s_reader_panel == READER_PANEL_LAYOUT_SETTINGS) draw_layout_settings(fb);

@@ -36,6 +36,8 @@ typedef struct {int x,y,width,height;} EpdRect;
 typedef enum {UI_CLICK_NAV,UI_CLICK_BACK,UI_CLICK_BACK_SMALL} ui_click_kind_t;
 static bool simple,oom;
 static int live,texts;
+static int icon_draws;
+static ui_icon_t drawn_icons[6];
 static uint8_t contrast=130;
 static uint8_t app_settings_system_contrast(void){return contrast;}
 uint8_t ui_contrast_gray(uint8_t gray);
@@ -65,13 +67,47 @@ static void ui_draw_round_rect(uint8_t *fb,EpdRect r,int radius,uint8_t g){
  EpdRect inner={r.x+1,r.y+1,r.width-2,r.height-2};
  for(int y=r.y;y<r.y+r.height;y++)for(int x=r.x;x<r.x+r.width;x++)if(inside(r,radius,x,y)&&(!inside(inner,radius-1,x,y)||x==r.x||y==r.y||x==r.x+r.width-1||y==r.y+r.height-1))epd_draw_pixel(x,y,g,fb);
 }
-static void ui_draw_icon(uint8_t *fb,int x,int y,int size,ui_icon_t icon,uint8_t g){(void)icon;epd_fill_rect((EpdRect){x-size/4,y-size/4,size/2,size/2},g,fb);}
+static void ui_draw_icon(uint8_t *fb,int x,int y,int size,ui_icon_t icon,uint8_t g){if(icon_draws<6)drawn_icons[icon_draws]=icon;++icon_draws;epd_fill_rect((EpdRect){x-size/4,y-size/4,size/2,size/2},g,fb);}
 static void ui_text(uint8_t *fb,int x,int y,int px,const char *s,int align,bool inv){(void)fb;(void)x;(void)y;(void)px;(void)align;(void)inv;assert(s&&*s);++texts;}
 static void ui_image_bw_rect(uint8_t *fb,EpdRect r){(void)fb;(void)r;}
 static void *heap_caps_malloc(size_t n,unsigned caps){assert(caps==3&&n<=4096);if(oom)return NULL;void*p=malloc(n);assert(p);++live;return p;}
 static void heap_caps_free(void*p){if(p){--live;free(p);}}
 static const char *labels[]={"Trang chủ","Kệ sách","Tệp tin","Cài đặt"};
 static int ui_nav_hit(uint16_t x,uint16_t y);
+'''
+
+READER = r'''
+#define BOOK_TOOL_COUNT 6
+#define READER_TOOL_ICON_PX 40
+static bool reader_marked;
+static int bookmark_reads;
+static bool bookmark_is_current(void){++bookmark_reads;return reader_marked;}
+static void ui_text_box(uint8_t *fb,EpdRect r,int px,const char *label,int align,bool inverted){
+ assert(r.y==1159&&r.height==40&&r.x>=0&&r.x+r.width<=684&&px==20);
+ ui_text(fb,r.x,r.y,px,label,align,inverted);
+}
+'''
+
+READER_CASES = r'''
+static void reader_cases(void){
+ for(contrast=100;contrast<=140;contrast+=10)for(int saved=1;saved>=0;--saved){
+  memset(frame,0x33,sizeof(frame));reader_marked=saved;bookmark_reads=icon_draws=texts=0;
+  draw_reader_tools(frame);
+  assert(bookmark_reads==1&&texts==6&&icon_draws==6&&!live);
+  assert(drawn_icons[1]==(saved?UI_ICON_BOOKMARK_CHECK:UI_ICON_BOOKMARK));
+  for(int y=0;y<1096;++y)for(int x=0;x<684;++x)assert(frame[y*684+x]==0x33);
+  assert(frame[1201*684+342]==0x88);
+  for(int i=0;i<6;++i){
+   EpdRect r=tool_rect(i);int cx=r.x+r.width/2;
+   assert(r.y==1096&&r.height==120&&r.width==114);
+   assert(frame[1183*684+cx]==(saved&&i==1?0x99:0xcc));
+  }
+  reader_marked=false;draw_reader_tools(frame);
+  assert(frame[1183*684+171]==0xcc);
+ }
+ contrast=130;
+ puts("PASS: actual reader tools share material tones at100–140% contrast; six original hit columns,icons,labels and bookmark state; repaint removes old selection; body pixels untouched and no allocations");
+}
 '''
 
 CASES = r'''
@@ -114,6 +150,7 @@ int main(void){
  ui_click_feedback_nav_request(0);oom=true;EpdRect dirty;
  (void)ui_click_feedback_nav_tick(frame,200,&dirty);assert(!live&&!ui_click_feedback_nav_pending());
  ui_click_feedback_reset();
+ reader_cases();
  puts("PASS: actual contrast mapping at100/110/120/130/140%, floating material tones, white guard, all4/2-tab selections/hits; exact press restoration;16 cross-page feedback baselines;OOM cleanup");
 }
 '''
@@ -187,7 +224,9 @@ def run(tmp, name, source, more=()):
 with tempfile.TemporaryDirectory() as folder:
     tmp = Path(folder)
     feedback = re.sub(r'^#include[^\n]*\n', '', (ROOT/'main/ui/ui_click_feedback.c').read_text(), flags=re.M)
-    draw = DRAW+feedback+'\n'+function('ui_contrast_gray', ROOT/'main/ui/ui_kit.c')+'\n'+function('ui_nav_hit', ROOT/'main/ui/ui_nav.c')+'\n'+function('icon', ROOT/'main/ui/ui_nav.c')+'\n'+function('nav_material_ink', ROOT/'main/ui/ui_nav.c')+'\n'+function('ui_nav_draw', ROOT/'main/ui/ui_nav.c')+CASES
+    kit=ROOT/'main/ui/ui_kit.c'
+    book=ROOT/'main/apps/app_book.c'
+    draw = DRAW+feedback+'\n'+function('ui_contrast_gray',kit)+'\n'+function('floating_material_ink',kit)+'\n'+function('ui_draw_floating_capsule',kit)+'\n'+function('ui_nav_hit', ROOT/'main/ui/ui_nav.c')+'\n'+function('icon', ROOT/'main/ui/ui_nav.c')+'\n'+function('ui_nav_draw', ROOT/'main/ui/ui_nav.c')+READER+'\n'+function('tool_rect',book)+'\n'+function('draw_reader_tool_icon',book)+'\n'+function('draw_reader_tools',book)+READER_CASES+CASES
     run(tmp, 'floating-draw', draw)
     harness = (ROOT/'tools/display_navigation_host_test.c').read_text().split('int main(void)')[0]
     # 中文：原区域替身的横条扩展范围改为内容截止线；其余波形及内存断言保留。/ English: Region shim now stops at the body boundary rather than extending through the obsolete marker; retain waveform/memory assertions.

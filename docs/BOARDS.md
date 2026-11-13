@@ -33,7 +33,7 @@ Bản S31 hỗ trợ phần cứng **V1.5 / E0470A14-AF 34Pin**. Giữ riêng wa
 
 Metalio设置主列表及文件管理内容按黑白目标使用DU20，固定底栏保留已显示像素，手动全刷与故障恢复仍走完整路径；设置子页图片预览保留灰阶。首页继续阅读卡片纯白，七款时钟在两种板型共用可释放底图缓存，覆盖首页、样式预览及放大时间页。实时底图两槽最多231840字节；S31额外为七款选择页预览各保留一个有界槽，统一池最多1043280字节PSRAM，始终预留2MiB；IKEA/小屋数字使用当前系统字体，Cat眼睛和Kehai圆环/圆点仅重绘局部，日期/分钟/方向/黑白模式和尺寸变化按需失效；内存不足直接绘制，进入阅读前释放。S31样式选择页固定10:10:30并按需缓存完整表盘，停止秒针/猫眼更新；箭头切换不单独扫描按下态，未变的底部按钮排除在更新范围之外，仍使用完整灰阶。选择页显示完成且空闲600ms后每轮最多在临时PSRAM画布准备一个相邻表盘，不写front/back，保留2MiB余量，用后即释放；触摸、待推屏或缺内存时暂缓。离开字体设置后重新进入首页时失效完整预览，首页与时间详情的实时底图不包含活动字形。普通灰阶切页的备行等待仅在非传输且无欠载时缩减，欠载后本次开机回退保守余量。
 
-Metalio普通主页使用定向黑白端点和完整中灰相位，悬浮底栏在内容完成后单独使用既有完整灰阶差分，未变化时跳过；阅读、水波纹、周期整理、手动全刷与失败恢复保留各自路径。当前普通灰阶48相、每相至少12ms，仅相位节拍已需576ms，另有供电、排版与传输开销；不能用CPU或内存规格推断整页能在300ms完成。串口的`SWITCH`日志区分退出、字体、进页、推屏和总耗时，`main refresh`另记录供电及显示总耗时；这些是固件计时，最终光学稳定时间仍需实机测量。
+Metalio系统根页及侧滑返回的内容区截止于1088，悬浮底栏完整更新1088..1215，不能沿用旧横条的1120截止线或黑白内容波形。Metalio普通主页使用定向黑白端点和完整中灰相位，悬浮底栏在内容完成后单独使用既有完整灰阶差分，未变化时跳过；阅读、水波纹、周期整理、手动全刷与失败恢复保留各自路径。当前普通灰阶48相、每相至少12ms，仅相位节拍已需576ms，另有供电、排版与传输开销；不能用CPU或内存规格推断整页能在300ms完成。串口的`SWITCH`日志区分退出、字体、进页、推屏和总耗时，`main refresh`另记录供电及显示总耗时；这些是固件计时，最终光学稳定时间仍需实机测量。
 
 S31的PIE只在Core1可用。较大的差分作业在扫描空闲时整帧提交给现有Core1供屏任务，前台同步等待像素、脏图与前导统计全部归还；小区域、无工作核或资源不足保留原路径，不迁移主任务。超时先请求取消并收回缓冲后回退，无法归还时停止而不留下后台写入。默认构建使用C算子，显式加`--s31-pie`才在Core1的16字节对齐完整块使用128位PIE，Core0、未对齐和尾部保持C。`METALIO_LOCAL_LATENCY=ON`仅供本地整帧oracle及开关对照，交付构建必须关闭；微基准不能作为整机倍数。
 
@@ -361,3 +361,7 @@ Các callback BLE dùng dữ liệu RAM. Luồng chính ghi danh sách sau khi k
 Khóa bảo mật ghép đôi NimBLE tiếp tục dùng kho NVS của SDK. Lỗi mở/ghi/commit kho khóa được ghi kèm tên và mã lỗi ESP-IDF để chẩn đoán. Chuyển hồ sơ sang SD chưa xác nhận sửa được lỗi lưu khóa ghép đôi trên thiết bị.
 
 Từ 1.4.1, thiết bị đã học phím chỉ điều hướng bằng khung đã cấu hình; học cả phím trước và sau nếu cần hai chiều. Thiết bị chưa học vẫn dùng ánh xạ HID mặc định. Chống lặp khung đã học dựa trên thời điểm nhận, không phụ thuộc thời gian vẽ màn hình.
+
+## Thanh công cụ đọc sách nổi
+
+Menu vuốt lên ở cuối trang đọc dùng cùng capsule xám0xcc,bóng0x88 với thanh điều hướng; dấu trang đã lưu có nền0x99. Giữ sáu cột chạm trong vùng1096–1215,vuốt từ120px dưới cùng,đóng menu khi chạm ngoài mà không lật trang. Màu vật liệu ổn định ở tương phản100–140%; không thêm blur,bộ nhớ đệm hay lượt refresh. Full và Love Book dùng chung bộ vẽ,giữ các đường refresh và khôi phục nền hiện có.

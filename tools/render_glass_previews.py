@@ -254,6 +254,27 @@ def library_page():
     return img
 
 
+def reader_floating_tools(marked=False):
+    img=base(True)
+    d=ImageDraw.Draw(img)
+    d.rectangle((0,1096,W-1,H-1),fill=255)
+    d.rounded_rectangle((12,1107,671,1202),48,fill=136)
+    d.rounded_rectangle((12,1104,671,1199),48,fill=204)
+    d.rounded_rectangle((13,1105,670,1198),47,outline=255)
+    tools=[('LIST','Mục lục'),('BOOKMARK_CHECK' if marked else 'BOOKMARK','Đã lưu dấu' if marked else 'Đánh dấu'),
+           ('ROTATE_CW','Đồng bộ'),('CHART_COLUMN','Thống kê'),('BOOK_OPEN','Cài đặt đọc'),('TYPE','Phông chữ')]
+    for i,(name,label) in enumerate(tools):
+        left=i*W//6;right=(i+1)*W//6;cx=(left+right)//2
+        if i==1 and marked:
+            d.rounded_rectangle((left+12,1112,right-13,1191),40,fill=153)
+            d.rounded_rectangle((left+13,1113,right-14,1190),39,outline=255)
+        icon(img,name,cx,1138,40)
+        px=20
+        while font(px).getlength(label)>right-left-8: px-=1
+        text(img,(cx,1167),label,px,anchor='mt')
+    return quantize(img)
+
+
 def controls(img, reader=False):
     d = ImageDraw.Draw(img)
     if reader:
@@ -340,6 +361,16 @@ def main():
             page_sheet.paste(img.resize((342, 608), Image.Resampling.LANCZOS), (x, 65))
         pd.text((24, 695), 'LAYOUT PREVIEW · 684 × 1216 · 16 gray levels · Not a device capture', font=font(18), fill='#555555')
         page_sheet.save(args.output/'pages-comparison.png')
+        reader_sheet=Image.new('RGB',(764,730),'#eeeeec')
+        rd=ImageDraw.Draw(reader_sheet)
+        for i,marked in enumerate((False,True)):
+            img=reader_floating_tools(marked)
+            img.save(args.output/('09-reader-bookmark-active.png' if marked else '08-reader-floating-tools.png'))
+            x=24+i*366
+            rd.text((x,20),'Đã lưu dấu trang' if marked else 'Menu vuốt lên',font=font(24),fill='#202020')
+            reader_sheet.paste(img.resize((342,608),Image.Resampling.LANCZOS),(x,65))
+        rd.text((24,695),'LAYOUT PREVIEW · 684 × 1216 · 16 gray levels',font=font(18),fill='#555555')
+        reader_sheet.save(args.output/'reader-floating-comparison.png')
     sheet = Image.new('RGB', (4*366+32, 770), '#eeeeec')
     draw = ImageDraw.Draw(sheet)
     for i, (label, img) in enumerate(renders):
