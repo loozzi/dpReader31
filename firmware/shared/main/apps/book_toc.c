@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * 中文：目录只呈现章节导航，和书架列表、旧示例菜单完全分离。
  * English: The directory only navigates chapters and shares no shelf or demo-menu rendering.
+ * User revision2026-11-14: white backing,flat gray chapter/paging cards and darker current selection; retain all navigation/jump geometry.
  * 用户修复：书名与章名统一使用当前系统字体的标题路径；原生字号、整行字体来源和灰阶抗锯齿保持一致，不放大补充点阵。
  * User fix: book/chapter names share the active system title path with native sizes, stable whole-line font selection and gray antialiasing, without enlarged bitmap supplements.
  */
@@ -112,16 +113,12 @@ int book_toc_page_from_percent(int percent, int pages) {
     return page < pages ? page : pages - 1;
 }
 
-// 双像素深色轮廓让白色卡片在墨水屏上仍有清晰边界。/ Dark two-pixel outlines keep white cards legible on e-paper.
-static void toc_border(uint8_t *fb, EpdRect rect, int radius, bool selected) {
-    uint8_t gray = selected ? 0x38 : 0x60;
-    ui_draw_round_rect(fb, rect, radius, gray);
-    ui_draw_round_rect(fb, (EpdRect){rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2},
-                       radius - 1, gray);
+// Chapter rows, page buttons and the jump dialog share the current card material.
+static void toc_border(uint8_t *fb,EpdRect rect,int radius,bool selected) {
+    ui_draw_soft_card(fb,rect,radius,selected);
 }
 
 static void toc_pill(uint8_t *fb, EpdRect rect, const char *text, int px, bool selected) {
-    ui_fill_round_rect(fb, rect, 20, selected ? 0xc0 : UI_GRAY_WHITE);
     toc_border(fb, rect, 20, selected);
     char label[160];
     one_line(label, sizeof(label), text);
@@ -132,7 +129,7 @@ static void toc_pill(uint8_t *fb, EpdRect rect, const char *text, int px, bool s
 void book_toc_render(uint8_t *fb, const char *book_title, size_t chapters,
                      size_t current, int page, const char *message) {
     ui_clear_page(fb);
-    ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, UI_LOCK_HEIGHT}, 0xe0, fb);
+    ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, UI_LOCK_HEIGHT}, UI_GRAY_WHITE, fb);
     ui_nav_status(fb);
     ui_nav_back(fb, TOC_LEFT, 79);
     ui_text_box(fb,(EpdRect){120,79,444,72},34,"Mục lục",EPD_DRAW_ALIGN_CENTER,false);
@@ -140,7 +137,7 @@ void book_toc_render(uint8_t *fb, const char *book_title, size_t chapters,
     char title[160];
     one_line(title, sizeof(title), book_title ? book_title : "");
     if (!title[0]) strcpy(title, "Sách đang đọc");
-    toc_title(fb, (EpdRect){TOC_LEFT,160,420,48}, 23, title, 0xe0);
+    toc_title(fb, (EpdRect){TOC_LEFT,160,420,48}, 23, title, UI_GRAY_WHITE);
     char total[48];
     snprintf(total, sizeof(total), "%u mục", (unsigned)chapters);
     ui_text_box(fb,(EpdRect){482,160,166,48},23,total,EPD_DRAW_ALIGN_RIGHT,false);
@@ -159,7 +156,6 @@ void book_toc_render(uint8_t *fb, const char *book_title, size_t chapters,
             if (source_index == SIZE_MAX) break;
             EpdRect r = book_toc_row_rect(row);
             bool selected = index == current;
-            ui_fill_round_rect(fb, r, 20, selected ? 0xc0 : UI_GRAY_WHITE);
             toc_border(fb, r, 20, selected);
             char number[16]; snprintf(number, sizeof(number), "%02u", (unsigned)index + 1);
             ui_text_box(fb,(EpdRect){r.x+14,r.y+11,58,72},21,number,EPD_DRAW_ALIGN_LEFT,false);
@@ -173,7 +169,7 @@ void book_toc_render(uint8_t *fb, const char *book_title, size_t chapters,
             one_line(label, sizeof(label), raw);
             if (!label[0]) snprintf(label, sizeof(label), "Mục %u", (unsigned)index + 1);
             toc_title(fb, (EpdRect){r.x+79,r.y+9,selected?420:495,76}, 30, label,
-                       selected ? 0xc0 : UI_GRAY_WHITE);
+                       ui_soft_card_color(selected));
             if (selected)
                 ui_text_box(fb,(EpdRect){r.x+r.width-93,r.y+11,71,72},24,"Hiện tại",EPD_DRAW_ALIGN_RIGHT,false);
         }
@@ -186,7 +182,6 @@ void book_toc_render(uint8_t *fb, const char *book_title, size_t chapters,
     toc_pill(fb, (EpdRect){426, 1018, 112, 68}, "Sau ›", 26, false);
     toc_pill(fb, (EpdRect){548, 1018, 100, 68}, "10 tr »", 24, false);
     EpdRect jump = {36, 1100, 612, 74};
-    ui_fill_round_rect(fb, jump, 21, UI_GRAY_WHITE);
     toc_border(fb, jump, 21, false);
     ui_text_box(fb,(EpdRect){58,1109,388,56},28,"Chuyển theo phần trăm (%)",EPD_DRAW_ALIGN_LEFT,false);
     char percent[24];
@@ -199,7 +194,6 @@ void book_toc_render_jump(uint8_t *fb, size_t chapters, int percent) {
     if (percent > 100) percent = 100;
     EpdRect card = {44, 356, 596, 572};
     ui_fill_round_rect(fb, card, 30, UI_GRAY_WHITE);
-    toc_border(fb, card, 30, true);
     ui_text_box(fb,(EpdRect){(342)-250,393,500,44},32,"Chuyển tới mục lục",EPD_DRAW_ALIGN_CENTER,false);
     ui_text_box(fb,(EpdRect){(342)-250,450,500,44},24,"Chọn phần trăm để xem trước vị trí",
                   EPD_DRAW_ALIGN_CENTER, false);
@@ -215,7 +209,6 @@ void book_toc_render_jump(uint8_t *fb, size_t chapters, int percent) {
     for (int i = 0; i < 5; ++i)
         ui_text_box(fb,(EpdRect){(92 + i * 125)-250,678,500,44},24,ticks[i],EPD_DRAW_ALIGN_CENTER,false);
     EpdRect target_card = {75, 740, 534, 84};
-    ui_fill_round_rect(fb, target_card, 19, 0xe8);
     toc_border(fb, target_card, 19, false);
     ui_text_box(fb,(EpdRect){99,747,486,30},23,"Vị trí đích",EPD_DRAW_ALIGN_LEFT,false);
     int pages = book_toc_pages(chapters);
@@ -231,6 +224,6 @@ void book_toc_render_jump(uint8_t *fb, size_t chapters, int percent) {
     fit_line(summary, 25, 486);
     ui_text_box(fb,(EpdRect){99,783,486,34},25,summary,EPD_DRAW_ALIGN_LEFT,false);
     toc_pill(fb, (EpdRect){75, 850, 255, 57}, "Hủy", 26, false);
-    ui_fill_round_rect(fb, (EpdRect){354, 850, 255, 57}, 20, 0x40);
-    ui_text_box(fb,(EpdRect){362,858,239,41},26,"Chuyển",EPD_DRAW_ALIGN_CENTER,true);
+    ui_draw_soft_card(fb,(EpdRect){354,850,255,57},20,true);
+    ui_text_box(fb,(EpdRect){362,858,239,41},26,"Chuyển",EPD_DRAW_ALIGN_CENTER,false);
 }

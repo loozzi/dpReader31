@@ -6,7 +6,7 @@ import json,re,subprocess,tempfile
 def function(name,path):
     text=path.read_text()
     scan=re.sub(r'//[^\n]*|/\*[\s\S]*?\*/|"(?:\\.|[^"\\])*"',lambda m:' '*len(m[0]),text)
-    match=re.search(r'^(?:static )?(?:void|int|bool|EpdRect) '+name+r'\([^;{}]*\)\s*\{',scan,re.M)
+    match=re.search(r'^(?:static )?(?:void|int|bool|EpdRect|const char\*) '+name+r'\([^;{}]*\)\s*\{',scan,re.M)
     assert match,name
     at,depth=match.end(),1
     while depth:
@@ -44,7 +44,7 @@ static int ttf_font_select(int slot){int keep=selected_slot;selected_slot=slot;r
 static int ttf_text_width_px(int px,const char *text);
 
 static bool scaling=true,s_system_ttf;
-static unsigned glyphs;
+static unsigned glyphs,surfaces;
 static EpdRect last_box, image_text_boxes[2];
 static bool image_probe;static unsigned image_text_count,image_switches;
 static int s_reader_slider=-1,s_reader_preview_px=32,s_px=32;
@@ -80,6 +80,8 @@ static void ui_fill_round_rect(uint8_t *fb,EpdRect r,int radius,int color){(void
  if(image_probe&&r.width==69&&r.height==39){assert(image_text_count==2);for(unsigned i=0;i<2;++i)assert(image_text_boxes[i].x+image_text_boxes[i].width+12<=r.x);++image_switches;}
 }
 static void ui_draw_control_frame(uint8_t *fb,EpdRect r,int radius,int color){ui_fill_round_rect(fb,r,radius,color);}
+static uint8_t ui_soft_card_color(bool selected){return selected?187:221;}
+static void ui_draw_soft_card(uint8_t *fb,EpdRect r,int radius,bool selected){++surfaces;ui_fill_round_rect(fb,r,radius,selected?187:221);}
 static void ui_draw_icon(uint8_t *fb,int x,int y,int px,int icon,int color){(void)fb;(void)x;(void)y;(void)px;(void)icon;(void)color;}
 static void copy_text(char *to,size_t cap,const char *from){snprintf(to,cap,"%s",from);}
 static int app_settings_book_weight_fine(void){return 2;}
@@ -116,6 +118,18 @@ for name in ('reader_ui_extra','reader_font_top','reader_font_card','reader_slid
              'draw_pill_slider','draw_font_pair','reading_setting_rect','reading_settings_top',
              'reading_toggle_rect','draw_reading_switch','draw_reading_card','draw_reading_toggle'):
     unit+=function(name,book)+'\n'
+unit+=r'''
+#define s_font_card reader_font_card(0)
+#define s_weight_card reader_font_card(1)
+#define s_layout_card reader_font_card(2)
+#define s_custom_card reader_font_card(3)
+#define READ_PICK_SIZE 0
+static int reader_choice_current(int kind){(void)kind;return 32;}
+static void reader_choice_label(int kind,int current,char *out,size_t size){(void)kind;snprintf(out,size,"%d px",current);}
+static unsigned app_settings_reader_turn_mode(void){return 0;}
+'''
+for name in ('reader_panel_text_vc','reader_panel_text','draw_reader_choice','reader_weight_value','draw_font_settings','reader_turn_effect_label','draw_reading_settings'):
+    unit+=function(name,book)+'\n'
 unit+=function('reader_font_picker_top',book)+'\n'+function('reader_font_pick_rect',book)+'\n'
 unit+='static bool s_bookmark_edit;\n'+function('bookmark_row_step',book)+'\n'+function('bookmark_rows',book)+'\n'+function('bookmark_row_rect',book)+'\n'
 unit+=r'''
@@ -125,6 +139,9 @@ int main(void){uint8_t fb[1]={0};
    image_probe=DPREADER_BOARD_METALIO47;image_text_count=0;draw_reading_toggle(fb,2,"关闭书内图片","跳过正文插图，保留原书文件",true);image_probe=false;
    ui_text_box(fb,(EpdRect){36,240,612,100},32,"Cỡ chữ hệ thống và đọc sách",EPD_DRAW_ALIGN_LEFT,false);
    draw_reading_font_name(fb,(EpdRect){36,360,612,100},"Testing font name");assert(!antialias&&selected_slot==2);
+   unsigned before=surfaces;
+   draw_font_settings(fb);assert(surfaces==before+6&&!antialias&&selected_slot==2);
+   before=surfaces;draw_reading_settings(fb);assert(surfaces==before+9);
    for(int i=0;i<4;++i){EpdRect a=reader_font_card(i);assert(a.y>=reader_font_top()+100&&a.y+a.height<1141);for(int j=0;j<i;++j)assert(!overlap(a,reader_font_card(j)));}
    EpdRect slider=reader_slider_rect(0);assert(slider.y>reader_font_top()+100&&slider.y+slider.height<reader_font_card(0).y);
    for(int i=0;i<8;++i){EpdRect a=reading_setting_rect(i);assert(a.y>=reading_settings_top()+100&&a.y+a.height<1141);for(int j=0;j<i;++j)assert(!overlap(a,reading_setting_rect(j)));}

@@ -33,6 +33,8 @@ void ui_clear_page(uint8_t *fb);
 void ui_fill_round_rect(uint8_t *fb, EpdRect r, int radius, uint8_t gray);
 void ui_fill_rect_fast(EpdRect rect, uint8_t gray, uint8_t *fb);
 void ui_draw_round_rect(uint8_t *fb, EpdRect r, int radius, uint8_t gray);
+uint8_t ui_soft_card_color(bool selected);
+void ui_draw_soft_card(uint8_t *fb,EpdRect r,int radius,bool selected);
 void ui_text_fixed(uint8_t *fb,int x,int y,int px,const char *text,enum EpdFontFlags align,bool inverse);
 int ui_text_fixed_width_px(int px,const char *text);
 int ui_text_effective_px(int px);
@@ -55,6 +57,9 @@ HARNESS = r'''
 #include <stdio.h>
 #include <string.h>
 #include "book_toc.c"
+static int surfaces,selected_surfaces;
+uint8_t ui_soft_card_color(bool selected){return selected?187:221;}
+void ui_draw_soft_card(uint8_t*fb,EpdRect r,int radius,bool selected){(void)fb;(void)radius;assert(r.width>0&&r.height>0);++surfaces;selected_surfaces+=selected;}
 static int cards;
 static int labels;
 static int large_titles,skip_labels,jump_summary,borders,pager_labels,jump_labels;
@@ -89,8 +94,8 @@ int ui_text_title_fit(char *text,int px,int width,const char *sample){
 }
 void ui_text_title_background_vc(uint8_t *fb,int x,int y,int px,const char *text,const char *sample,enum EpdFontFlags align,uint8_t background){
     assert(title_fits==title_draws+1&&strstr(sample,text)==sample);++title_draws;
-    if(px==30){assert(background==0xc0||background==255);selected_titles+=background==0xc0;white_titles+=background==255;}
-    else assert(background==0xe0);
+    if(px==30){assert(background==187||background==221);selected_titles+=background==187;white_titles+=background==221;}
+    else assert(background==255);
     ui_text_fixed(fb,x,y,px,text,align,false);
 }
 EpdRect ui_inset_rect(EpdRect r,int d){return (EpdRect){r.x+d,r.y+d,r.width-2*d,r.height-2*d};}
@@ -132,8 +137,8 @@ int main(void){
     fit_line(long_title,30,100);assert(strstr(long_title,"…")!=NULL);
     uint8_t fb=0;
     book_toc_render(&fb,"书名\n下一行",8,1,0,"");
-    assert(cards==13 && labels>=17 && large_titles==7 && skip_labels==2);
-    assert(borders==26 && pager_labels==2 && jump_labels==1);
+    assert(cards==0 && labels>=17 && large_titles==7 && skip_labels==2);
+    assert(borders==0 && surfaces==13 && selected_surfaces==2 && pager_labels==2 && jump_labels==1);
     assert(title_draws==8&&selected_titles==1&&white_titles==6);
     book_toc_render_jump(&fb,168,60);
     assert(jump_summary==1);
