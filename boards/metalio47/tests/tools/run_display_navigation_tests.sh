@@ -14,6 +14,14 @@ python3 tools/settings_gray_preview_host_test.py
 python3 tools/ui_choice_host_test.py
 python3 tools/online_font_ui_host_test.py
 python3 tools/transfer_controls_layout_host_test.py
+python3 tools/test_book_toc.py
+python3 tools/reader_ui_scale_host_test.py
+python3 tools/reader_chapter_jump_host_test.py
+python3 tools/kosync_feedback_host_test.py
+python3 tools/reader_font_recovery_host_test.py
+python3 tools/reader_font_switch_host_test.py
+python3 tools/reading_settings_host_test.py
+python3 tools/reader_panel_host_test.py
 cc -std=c11 -Wall -Wextra -Werror -g -fsanitize=address,undefined \
     -Imain -Imain/app \
     -Itools/waveform_host_stubs -Icomponents/epdiy/include -Icomponents/epdiy/src \

@@ -22,6 +22,7 @@ DRAW = r'''
 #include <string.h>
 #include "assets/ui_icons.h"
 #include "ui/ui_nav_layout.h"
+#define DPREADER_BOARD_METALIO47 1
 #define UI_LOCK_WIDTH 684
 #define UI_LOCK_HEIGHT 1216
 #define UI_GRAY_WHITE 255
@@ -100,13 +101,14 @@ static void reader_cases(void){
   for(int i=0;i<6;++i){
    EpdRect r=tool_rect(i);int cx=r.x+r.width/2;
    assert(r.y==1096&&r.height==120&&r.width==114);
-   assert(frame[1183*684+cx]==(saved&&i==1?0x99:0xcc));
+   assert(frame[1183*684+cx]==(saved&&i==1?0xbb:0xdd));
+   assert(frame[1201*684+r.x]==255);
   }
   reader_marked=false;draw_reader_tools(frame);
-  assert(frame[1183*684+171]==0xcc);
+  assert(frame[1183*684+171]==0xdd);
  }
  contrast=130;
- puts("PASS: actual reader tools share material tones at100–140% contrast; six original hit columns,icons,labels and bookmark state; repaint removes old selection; body pixels untouched and no allocations");
+ puts("PASS: actual reader actions use separate contrast-stable gray tiles; six original hit columns,icons,labels and bookmark state; white gaps/no shadow; repaint removes old selection; body pixels untouched and no allocations");
 }
 '''
 

@@ -364,12 +364,18 @@ Từ 1.4.1, thiết bị đã học phím chỉ điều hướng bằng khung đ
 
 ## Thanh công cụ đọc sách nổi
 
-Menu vuốt lên ở cuối trang đọc dùng cùng capsule xám0xcc,bóng0x88 với thanh điều hướng; dấu trang đã lưu có nền0x99. Giữ sáu cột chạm trong vùng1096–1215,vuốt từ120px dưới cùng,đóng menu khi chạm ngoài mà không lật trang. Màu vật liệu ổn định ở tương phản100–140%; không thêm blur,bộ nhớ đệm hay lượt refresh. Full và Love Book dùng chung bộ vẽ,giữ các đường refresh và khôi phục nền hiện có.
+Menu quick action vuốt lên ở cuối trang đọc dùng sáu thẻ xám riêng cùng vật liệu với Cài đặt: nền221,dấu trang đã lưu187,không có capsule ngoài hay bóng đổ. Giữ sáu cột chạm trong vùng1096–1215,vuốt từ120px dưới cùng,đóng menu khi chạm ngoài mà không lật trang. Màu vật liệu ổn định ở tương phản100–140%; không thêm blur,bộ nhớ đệm hay lượt refresh. Full và Love Book dùng chung bộ vẽ,giữ các đường refresh và khôi phục nền hiện có.
 
 ## Thẻ xám trên bốn trang chính
 
 Theo mẫu giao diện ngày 13/11/2026, Full dùng thẻ xám phẳng, khoảng trắng và thanh điều hướng trắng với nền riêng cho mục chọn. Kiểu Tủ sách số2 là “Lưới tối giản”, sáu cuốn mỗi trang, dùng lại ảnh164×214 và cache hiện có; phân trang và vùng chạm lấy cùng bố cục. Hai kiểu kệ tối màu/danh sách vẫn có trong Cài đặt. Không thêm bộ lọc, tìm kiếm hoặc thông báo giả. Simple/Love giữ bố cục Trang chủ riêng.
 
-Màu thẻ221 và mục chọn187 được bù tương phản100–140%. Chế độ thường dùng refresh xám cho nội dung hệ thống; Fast vẫn dùng đen trắng. Vùng nội dung0..1087 và thanh điều hướng1088..1215 giữ độc lập. Menu vuốt lên khi đọc vẫn dùng capsule đã có.
+Màu thẻ221 và mục chọn187 được bù tương phản100–140%. Chế độ thường dùng refresh xám cho nội dung hệ thống; Fast vẫn dùng đen trắng. Vùng nội dung0..1087 và thanh điều hướng1088..1215 giữ độc lập. Menu vuốt lên khi đọc dùng sáu nút thẻ xám riêng theo cùng vật liệu.
 
 Các trang con Cài đặt và trang chọn mạng WiFi dùng chung nền thẻ221/mục chọn187,không viền khung đậm. Hộp chọn giữ mục đang chọn và thanh điều hướng. Vùng nhận tệp trực tiếp564×150 vẫn chuyển đen trắng và dùng DU; không đổi màu các thẻ ngoài vùng này. Giữ nguyên QR,mật khẩu,lưu cấu hình và các bước xác nhận.
+
+## Các bảng con từ quick action đọc sách
+
+Mục lục, danh sách dấu trang, Thống kê, Cài đặt đọc, Phông chữ và các trang chọn bên trong dùng chung thẻ221/mục chọn187; nút Xong/Quay lại chữ đen trên nền xám, bảng trắng không khung đậm. Giữ nguyên các hình chữ nhật vẽ/chạm, phân trang, xác nhận xóa, đồng bộ và quyền sở hữu phông. Phông mẫu có ô xem trước trắng bên trong thẻ xám để giữ đường raster nền trắng của bộ font. Thanh kéo, nút gạt và biểu đồ vẫn có nét tương phản cần thiết.
+
+Đánh dấu và Đồng bộ trên quick action tiếp tục thực hiện ngay; danh sách dấu trang vẫn vào qua Thống kê. Không tạo thêm trang chức năng giả hay đổi luồng lưu/khôi phục. Các bảng vẫn dùng đường refresh vùng xám và bộ nhớ đệm nền đọc hiện có; đóng bảng khôi phục trang đang đọc.

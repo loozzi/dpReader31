@@ -258,16 +258,11 @@ def reader_floating_tools(marked=False):
     img=base(True)
     d=ImageDraw.Draw(img)
     d.rectangle((0,1096,W-1,H-1),fill=255)
-    d.rounded_rectangle((12,1107,671,1202),48,fill=136)
-    d.rounded_rectangle((12,1104,671,1199),48,fill=204)
-    d.rounded_rectangle((13,1105,670,1198),47,outline=255)
     tools=[('LIST','Mục lục'),('BOOKMARK_CHECK' if marked else 'BOOKMARK','Đã lưu dấu' if marked else 'Đánh dấu'),
            ('ROTATE_CW','Đồng bộ'),('CHART_COLUMN','Thống kê'),('BOOK_OPEN','Cài đặt đọc'),('TYPE','Phông chữ')]
     for i,(name,label) in enumerate(tools):
         left=i*W//6;right=(i+1)*W//6;cx=(left+right)//2
-        if i==1 and marked:
-            d.rounded_rectangle((left+12,1112,right-13,1191),40,fill=153)
-            d.rounded_rectangle((left+13,1113,right-14,1190),39,outline=255)
+        d.rounded_rectangle((left+4,1106,right-5,1209),18,fill=187 if i==1 and marked else 221)
         icon(img,name,cx,1138,40)
         px=20
         while font(px).getlength(label)>right-left-8: px-=1

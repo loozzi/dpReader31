@@ -5,7 +5,8 @@
 - Nút quay lại dùng mũi tên trái không có vòng tròn, kể cả khi nhấn; giữ nguyên vùng chạm.
 - Đồng bộ các trang Cài đặt bên trong: hàng tùy chọn, nút, hộp chọn giá trị và trang chọn mạng WiFi cùng kiểu thẻ xám; giữ cuộn, vùng chạm, trạng thái chọn và thao tác quay lại.
 - Kiểu Tủ sách mặc định chuyển từ Acrylic sang lưới tối giản3×2, có tên, định dạng và dung lượng; giữ kiểu kệ tối màu và danh sách.
-- Menu vuốt lên khi đọc sách dùng capsule xám đậm, giữ sáu thao tác và làm nổi dấu trang đã lưu.
+- Các trang mở từ quick action dùng cùng thẻ xám phẳng: Mục lục, danh sách dấu trang, Thống kê, Cài đặt đọc, Phông chữ và các lựa chọn bên trong; thông báo Đồng bộ cũng đồng bộ kiểu hiển thị.
+- Quick action khi vuốt lên lúc đọc sách dùng sáu nút thẻ xám bo góc riêng, đồng bộ với giao diện mới; dấu trang đã lưu có nền đậm, giữ các thao tác và vùng chạm.
 - Sửa dư ảnh khi chuyển tab hoặc vuốt trở về bằng refresh xám đầy đủ thanh dưới cùng; phản hồi nhấn lấy lại nền mới sau khi chuyển trang.
 
 

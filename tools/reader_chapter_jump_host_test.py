@@ -34,8 +34,8 @@ static const char *s_text="body";
 static char s_title[128]="第一章 山边小村";
 static int s_view=READING,s_reader_panel=READER_PANEL_NONE,s_reader_slider=2,s_bookmark_page;
 static bool s_water_turn_pending,s_reader_turn_pending,s_reader_text_frame;
-static bool s_reader_image_frame,s_reader_image_exit_pending;
 static bool s_reader_footer_pending,s_reader_image_refresh_pending,s_reader_cleanup;
+static bool s_reader_image_frame __attribute__((unused)),s_reader_image_exit_pending __attribute__((unused));
 static bool s_bookmark_edit,s_bookmark_delete_confirm,s_bookmark_delete_error,s_recent_days_valid;
 static unsigned s_bookmark_selected,s_session_turns=12;
 static int s_recent_days[30];static int64_t s_stats_activity_ms,s_session_read_ms=26*60000;
@@ -58,9 +58,9 @@ static unsigned percent(size_t page){return (unsigned)(page*100/(book_layout_pag
 static void copy_text(char *dst,size_t cap,const char *src){snprintf(dst,cap,"%s",src);}
 static bool ui_rect_hit(EpdRect r,int x,int y){return r.width>0&&r.height>0&&x>=r.x&&y>=r.y&&x<r.x+r.width&&y<r.y+r.height;}
 static void bounds(EpdRect r){assert(r.x>=0&&r.y>=0&&r.width>=0&&r.height>=0&&r.x+r.width<=684&&r.y+r.height<=1216);}
+static void draw_sheet_back(uint8_t *fb,int top){(void)fb;assert(top>0&&top<1216);}
 static void draw_sheet(uint8_t *fb,int top,const char *s){(void)fb;(void)s;assert(top>0&&top<1216);}
-static void epd_draw_line(int x,int y,int x2,int y2,int gray,uint8_t *fb){(void)gray;(void)fb;assert(x>=0&&x2<684&&y>=0&&y2<1216);}
-static unsigned scale=100,wide=10,glyphs;static bool s_system_ttf;static EpdRect text_box;
+static unsigned scale=100,wide=10,glyphs,surfaces,selected_surfaces;static bool s_system_ttf;static EpdRect text_box;
 static bool ttf_font_is_builtin(void){return !s_system_ttf;}
 static bool ui_font_has_text(const char *s){(void)s;return true;}
 static int ui_text_effective_px(int px){return (px+2)*(int)scale/100;}
@@ -76,7 +76,7 @@ static void ui_text_fixed_vc(uint8_t *fb,int x,int cy,int px,const char *s,enum 
 static void actual_text_box(uint8_t *fb,EpdRect r,int px,const char *s,enum EpdFontFlags align,bool inverse);
 static void ui_text_box(uint8_t *fb,EpdRect r,int px,const char *s,enum EpdFontFlags align,bool inverse){bounds(r);text_box=r;actual_text_box(fb,r,px,s,align,inverse);}
 static void ui_fill_round_rect(uint8_t *fb,EpdRect r,int radius,int gray){(void)fb;(void)radius;(void)gray;bounds(r);}
-static void ui_draw_control_frame(uint8_t *fb,EpdRect r,int radius,int gray){ui_fill_round_rect(fb,r,radius,gray);}
+static void ui_draw_soft_card(uint8_t *fb,EpdRect r,int radius,bool selected){++surfaces;selected_surfaces+=selected;ui_fill_round_rect(fb,r,radius,selected?187:221);}
 static void ui_fill_rect_fast(EpdRect r,int gray,uint8_t *fb){ui_fill_round_rect(fb,r,0,gray);}
 static void ui_hairline(uint8_t *fb,int y,int x,int w,int gray){ui_fill_rect_fast((EpdRect){x,y,w,1},gray,fb);}
 '''
@@ -105,6 +105,24 @@ for name in ('reader_page_offset', 'reader_stats_control_rect', 'reader_chapter_
              'reader_chapter_jump_parse', 'reader_chapter_jump_commit', 'reader_chapter_jump_action',
              'reader_chapter_jump_gesture'):
     unit += function(name, BOOK) + '\n'
+unit+=r'''
+#define BOOKMARK_MAX 24
+#define UI_PX_BTN 24
+#define UI_LOCK_WIDTH 684
+#define UI_LOCK_HEIGHT 1216
+typedef struct{uint16_t chapter;uint32_t byte_off;}reader_bookmark_entry_t;
+typedef struct{uint16_t count;reader_bookmark_entry_t entries[24];}reader_bookmarks_t;
+static reader_bookmarks_t saved_marks;static bool marks_valid;
+static void epd_draw_circle(int x,int y,int radius,int ink,uint8_t*fb){(void)ink;(void)fb;bounds((EpdRect){x-radius,y-radius,2*radius,2*radius});}
+static void epd_fill_circle(int x,int y,int radius,int ink,uint8_t*fb){epd_draw_circle(x,y,radius,ink,fb);}
+static unsigned ui_text_system_percent(void){return scale;}
+static bool bookmark_load(reader_bookmarks_t *marks){*marks=saved_marks;return marks_valid;}
+static int book_chapter_title(unsigned chapter,char*out,size_t cap){snprintf(out,cap,"Chương %u — Nội dung đã lưu",chapter);return 0;}
+static void fit_text(char*s,int px,int w){(void)s;(void)px;(void)w;}
+static EpdRect ui_inset_rect(EpdRect r,int d){return(EpdRect){r.x+d,r.y+d,r.width-2*d,r.height-2*d};}
+'''
+for name in ('reader_panel_text_vc','reader_panel_button','bookmark_row_step','bookmark_rows','bookmark_row_rect','bookmark_pages','bookmark_selected_count','draw_reader_bookmarks'):
+ unit+=function(name,BOOK)+'\n'
 unit += r'''
 static void reset(void){
  s_text="body";s_view=READING;s_page=6;s_chapter=3;span=100;chapter_length=3200;
@@ -122,7 +140,17 @@ int main(void){
  app_ctx_t ctx={.now_ms=1000};size_t page=123;uint8_t fb=0;
  reset();reader_chapter_jump_begin();assert(s_chapter_jump_page==6);
  for(scale=100;scale<=200;scale+=25)for(wide=10;wide<=12;wide+=2)for(int face=0;face<2;++face){
-  s_system_ttf=face;draw_reader_stats(&fb);s_reader_panel=READER_PANEL_CHAPTER_JUMP;
+  s_system_ttf=face;
+  marks_valid=true;saved_marks.count=3;
+  for(unsigned i=0;i<3;++i)saved_marks.entries[i]=(reader_bookmark_entry_t){.chapter=3,.byte_off=i?i*100:600};
+  for(int edit=0;edit<2;++edit){
+   s_bookmark_page=0;s_bookmark_edit=edit;s_bookmark_selected=edit?4:0;s_bookmark_delete_confirm=edit;
+   unsigned before=surfaces;draw_reader_bookmarks(&fb);assert(surfaces>before);
+  }
+  saved_marks.count=0;s_bookmark_edit=false;s_bookmark_delete_confirm=false;
+  unsigned before=surfaces;draw_reader_bookmarks(&fb);assert(surfaces==before);
+  marks_valid=false;draw_reader_bookmarks(&fb);
+  draw_reader_stats(&fb);s_reader_panel=READER_PANEL_CHAPTER_JUMP;
   strcpy(s_chapter_jump_digits,"99999999999999999999999");s_chapter_jump_error=true;draw_reader_chapter_jump(&fb);
  }
  assert(glyphs>500);reader_chapter_jump_begin();
@@ -149,7 +177,7 @@ int main(void){
  copy_text(s_chapter_jump_digits,sizeof(s_chapter_jump_digits),"00032");assert(reader_chapter_jump_parse(&page)&&page==31);
  tap(&ctx,31);assert(!strcmp(s_chapter_jump_digits,"0003")&&!s_chapter_jump_error);
  tap(&ctx,29);assert(!s_chapter_jump_digits[0]);
- for(int i=0;i<50;++i)tap(&ctx,28);assert(strlen(s_chapter_jump_digits)==sizeof(s_chapter_jump_digits)-1);
+ for(int i=0;i<50;++i){tap(&ctx,28);}assert(strlen(s_chapter_jump_digits)==sizeof(s_chapter_jump_digits)-1);
  tap(&ctx,32);assert(s_reader_panel==READER_PANEL_STATS&&s_page==6&&!saves);
  s_chapter_jump_page=0;assert(tap(&ctx,2)==APP_REDRAW_NONE&&s_chapter_jump_page==0);
  s_chapter_jump_page=31;assert(tap(&ctx,4)==APP_REDRAW_NONE&&s_chapter_jump_page==31);
@@ -182,7 +210,7 @@ int main(void){
   s_reader_panel=panel;
   for(unsigned y=0;y<1216;y+=7)for(unsigned x=0;x<684;x+=7){int hit=reader_chapter_jump_hit(x,y);assert(hit>=-1&&hit<=33);}
  }
- puts("PASS: actual chapter UI bounds, keypad, overflow, draft/confirm, zero/one/many pages, reflow undo, stale media/chapter/time and gesture cancellation");
+ puts("PASS: actual gray stats/bookmark UI, valid/empty/load-failed lists, edit/confirmation bounds at100-200%;chapter controls,keypad, overflow, draft/confirm, zero/one/many pages, reflow undo, stale media/chapter/time and gesture cancellation");
 }
 '''
 # 清理与过期路径必须取消锚点并清掉完整提示区域。/ Cleanup and expiry must invalidate anchors and erase all toast pixels.

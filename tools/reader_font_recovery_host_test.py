@@ -93,7 +93,7 @@ int main(void){app_ctx_t ctx={0};ttf_font_item_t item={"new.ttf"};
  load_fails=true;
  for(unsigned i=1;i<=3;++i){assert(select_reading_font_item(&ctx,&item)==APP_REDRAW_PAGE);
   assert(s_font_fallbacks==i&&!locked&&builtin);
-  for(int j=0;j<100;++j)reader_font_choice_finish();assert(s_font_fallbacks==i);
+  for(int j=0;j<100;++j){reader_font_choice_finish();}assert(s_font_fallbacks==i);
   assert(s_font_recovery_pending==(i==3));}
  assert(reader_font_recovery_tick(&ctx)==APP_REDRAW_PAGE&&s_reader_panel==READER_PANEL_FONT_RECOVERY);
  assert(!s_font_recovery_pending&&!restarts);
